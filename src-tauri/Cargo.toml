@@ -1,0 +1,43 @@
+[package]
+name = "keykeeper"
+version = "0.1.0"
+description = "A secure API key manager"
+authors = ["cadamfun"]
+license = "MIT"
+repository = "https://github.com/nikomatt69/"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.6.2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-biometric = "2.0.0"
+tauri-plugin-keychain = "2.0.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+tauri-plugin-log = "2"
+log = "0.4.27"
+env_logger = "0.11.8"
+bcrypt = "0.15"
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.21"
+chrono = { version = "0.4", features = ["serde"] }
+rustls = "0.22"
+tokio-rustls = "0.25"
+rcgen = "0.12"
+rsa = "0.9"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4"] }
+webauthn-rs = "0.4"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]

@@ -1,0 +1,102 @@
+name: 'Build and Release KeyKeeper'
+
+on:
+  push:
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+      
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+      
+      - name: Run tests
+        run: yarn test --if-present
+      
+      - name: Lint
+        run: yarn lint --if-present
+      
+      - name: Type check
+        run: yarn type-check --if-present
+
+  build:
+    needs: test
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            args: '--target universal-apple-darwin'
+          - platform: 'ubuntu-22.04'
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
+
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'yarn'
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Generate app icons
+        run: |
+          # Create a simple icon if none exists
+          mkdir -p assets
+          if [ ! -f "assets/icon.png" ]; then
+            # Create a simple colored square as placeholder
+            if command -v convert &> /dev/null; then
+              convert -size 512x512 xc:transparent -fill '#4F46E5' -draw 'roundrectangle 50,50 462,462 50,50' -fill white -pointsize 200 -gravity center -annotate +0+0 'K' assets/icon.png
+            else
+              echo "ImageMagick not available, using existing icons"
+            fi
+          fi
+          
+          # Generate icons with Tauri CLI
+          npx @tauri-apps/cli@latest icon assets/icon.png || echo "Icon generation failed, using existing icons"
+
+      - name: Build the app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'KeyKeeper ${{ github.ref_name }}'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.args }}
