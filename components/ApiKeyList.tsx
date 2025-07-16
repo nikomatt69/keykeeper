@@ -33,7 +33,7 @@ export default function ApiKeyList() {
   useEffect(() => {
     const loadVSCodeStatuses = async () => {
       const statuses: Record<string, string> = {}
-      
+
       for (const key of filteredKeys) {
         if (key.source_type === 'env_file' && key.project_path) {
           try {
@@ -45,7 +45,7 @@ export default function ApiKeyList() {
           }
         }
       }
-      
+
       setVscodeStatuses(statuses)
     }
 
@@ -90,7 +90,8 @@ export default function ApiKeyList() {
 
   const formatKey = (key: string, isVisible: boolean) => {
     if (isVisible) return key
-    return key.slice(0, 8) + '•'.repeat(Math.max(0, key.length - 12)) + key.slice(-4)
+    // Show a fixed number of dots, e.g., 16
+    return '•'.repeat(16)
   }
 
   const isExpiringSoon = (expiresAt?: string) => {
@@ -234,7 +235,10 @@ export default function ApiKeyList() {
                         borderRadius: 'var(--radius-sm)',
                         border: '1px solid rgba(0, 0, 0, 0.08)',
                         wordBreak: 'break-all',
-                        fontSize: '13px'
+                        fontSize: '13px',
+                        whiteSpace: 'pre-wrap', // allow wrapping
+                        overflowWrap: 'break-word', // extra safety
+                        maxWidth: '100%', // never overflow
                       }}>
                         {formatKey(apiKey.key, visibleKeys.has(apiKey.id))}
                       </p>
@@ -277,7 +281,7 @@ export default function ApiKeyList() {
                       <div className="space-y-2 pt-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
                         <div className="flex items-center justify-between">
                           <span className="text-caption font-medium">Source Project</span>
-                          <VSCodeStatusIndicator 
+                          <VSCodeStatusIndicator
                             status={vscodeStatuses[apiKey.id] as 'open' | 'closed' | 'unknown' || 'unknown'}
                             size="sm"
                           />
