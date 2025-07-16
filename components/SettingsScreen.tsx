@@ -490,7 +490,7 @@ function SecuritySettings({ settings, onChange }: {
                         <div>
                             <label className="text-body font-medium">Biometric Unlock</label>
                             <p className="text-caption">
-                                {biometricSupported 
+                                {biometricSupported
                                     ? "Use Touch ID, Face ID or Windows Hello to unlock your vault"
                                     : "Biometric authentication is not available on this device"
                                 }
@@ -500,7 +500,10 @@ function SecuritySettings({ settings, onChange }: {
                             <input
                                 type="checkbox"
                                 checked={userPreferences?.biometric_unlock || false}
-                                onChange={enableBiometricAuth}
+                                onChange={async (e) => {
+                                    const checked = e.target.checked;
+                                    await enableBiometricAuth();
+                                }}
                                 disabled={!biometricSupported || biometricLoading}
                                 className="sr-only peer"
                             />
@@ -536,7 +539,7 @@ function SecuritySettings({ settings, onChange }: {
                                     <span>Add Device</span>
                                 </button>
                             </div>
-                            
+
                             <div className="space-y-2">
                                 <div className="flex items-center justify-between p-3 glass-card">
                                     <div className="flex items-center space-x-3">
@@ -572,11 +575,23 @@ function SecuritySettings({ settings, onChange }: {
                         <input
                             type="text"
                             value={userPreferences?.username || ''}
+                            onChange={e => setUserPreferences({ ...userPreferences, username: e.target.value })}
                             className="input-native focus-native"
                             placeholder="Enter username"
                             style={{ width: '100%' }}
-                            readOnly
+                            readOnly={false}
                         />
+                        {userPreferences && userPreferences.username !== (async () => await TauriAPI.getUserAccount()) && (
+                            <button onClick={async () => {
+                                try {
+                                    await TauriAPI.updateUsername(userPreferences.username)
+                                    await loadUserPreferences()
+                                    // Show success notification
+                                } catch (err) {
+                                    // Show error notification
+                                }
+                            }}>Save</button>
+                        )}
                     </div>
 
                     <div>

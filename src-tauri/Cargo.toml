@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "A secure API key manager"
 authors = ["cadamfun"]
 license = "MIT"
-repository = "https://github.com/nikomatt69/"
+repository = "https://github.com/nikomatt69/keykeeper"
 edition = "2021"
 
 [build-dependencies]

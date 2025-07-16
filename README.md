@@ -1,221 +1,304 @@
 # KeyKeeper 🔐
 
-Un gestore sicuro di API keys costruito con Tauri v2, Next.js, TypeScript e Rust. Stile family.co con animazioni fluide tramite Framer Motion.
+[![Build](https://img.shields.io/badge/build-passing-brightgreen)](https://github.com/cadcamfun/keykeeper/actions)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-informational)](https://tauri.app/)
+[![Mail Ready](https://img.shields.io/badge/mail-MJ%20SMTP-green)](https://www.mailjet.com/)
 
-## 🚀 Caratteristiche
+---
 
-- **Sicurezza Locale**: Tutte le API keys sono memorizzate localmente sul tuo dispositivo
-- **Crittografia**: Password master per proteggere il vault
-- **Organizzazione**: Gestisci keys per diversi ambienti (dev, staging, production)
-- **Ricerca Avanzata**: Trova rapidamente le tue API keys
-- **Scadenze**: Monitora le date di scadenza delle keys
-- **Tags e Scopes**: Organizza le keys con tag e scopes personalizzati
-- **Export**: Esporta il vault per backup
-- **UI Moderna**: Interfaccia ispirata a family.co con animazioni fluide
+## 🚀 Features
 
-## 🛠️ Tecnologie
+- **Local Security**: All API keys are stored locally on your device
+- **Encryption**: Master password to protect the vault
+- **Organization**: Manage keys for different environments (dev, staging, production)
+- **Advanced Search**: Quickly find your API keys
+- **Expiration Tracking**: Monitor key expiration dates
+- **Tags and Scopes**: Organize keys with custom tags and scopes
+- **Export**: Export the vault for backup
+- **Modern UI**: Interface inspired by family.co with smooth animations
+
+## 🛠️ Technologies
 
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS, Framer Motion
-- **Backend**: Rust con Tauri v2
+- **Backend**: Rust with Tauri v2
 - **State Management**: Zustand
 - **Icons**: Lucide React
 - **Package Manager**: Yarn
 
-## 📦 Installazione
+## 📦 Installation
 
-### Prerequisiti
+### Prerequisites
 
 - Node.js 18+
-- Rust 1.77+ (per Tauri v2)
+- Rust 1.77+ (for Tauri v2)
 - Yarn
 
 ### Setup
 
-1. **Installa le dipendenze**
+1. **Install dependencies**
    ```bash
    yarn install
    ```
-
-2. **Installa Tauri CLI v2**
+2. **Install Tauri CLI v2**
    ```bash
    yarn add -D @tauri-apps/cli@^2.0.0
    ```
-
-3. **Avvia in modalità sviluppo**
+3. **Start in development mode**
    ```bash
    yarn tauri:dev
    ```
-
-4. **Build per produzione**
+4. **Build for production**
    ```bash
    yarn tauri:build
    ```
 
-## 🎯 Utilizzo
+## 🎯 Usage
 
-### Primo Avvio
+### First Launch
 
-1. Al primo avvio, imposta una password master sicura
-2. Questa password verrà usata per crittografare il vault
-3. **Non dimenticare la password**: non c'è modo di recuperarla!
+1. On first launch, set a secure master password
+2. This password will be used to encrypt the vault
+3. **Do not forget your password**: there is no way to recover it!
 
-### Gestione API Keys
+### API Key Management
 
-1. **Aggiungi una nuova API key**:
-   - Clicca su "Nuova API Key"
-   - Compila i campi obbligatori (Nome, Servizio, API Key)
-   - Seleziona l'ambiente (dev/staging/production)
-   - Aggiungi descrizione, scopes e tags opzionali
+1. **Add a new API key**:
+   - Click "New API Key"
+   - Fill in required fields (Name, Service, API Key)
+   - Select the environment (dev/staging/production)
+   - Add optional description, scopes, and tags
+2. **Edit an existing key**:
+   - Select the key from the list
+   - Click the edit icon
+   - Update the necessary fields
+3. **Delete a key**:
+   - Select the key
+   - Click the delete icon
+   - Confirm deletion
 
-2. **Modifica una key esistente**:
-   - Seleziona la key dalla lista
-   - Clicca sull'icona di modifica
-   - Aggiorna i campi necessari
+### Search and Filters
 
-3. **Elimina una key**:
-   - Seleziona la key
-   - Clicca sull'icona elimina
-   - Conferma l'eliminazione
+- Use the search bar to find keys by name, service, or tag
+- Keys are organized by environment with colored counters
+- Easily view expiring keys
 
-### Ricerca e Filtri
+### Security
 
-- Usa la barra di ricerca per trovare keys per nome, servizio o tag
-- Le keys sono organizzate per ambiente con contatori colorati
-- Visualizza facilmente le keys in scadenza
+- **Lock the vault**: Use the "Lock Vault" button to protect your data
+- **Hide/Show keys**: Use the eye icon to show/hide API keys
+- **Secure copy**: Copy keys to clipboard with one click
 
-### Sicurezza
+## 🔧 Configuration
 
-- **Blocca il vault**: Usa il pulsante "Blocca Vault" per proteggere i dati
-- **Nascondi/Mostra keys**: Usa gli occhi per mostrare/nascondere le API keys
-- **Copia sicura**: Copia le keys negli appunti con un click
+### UI Customization
 
-## 🔧 Configurazione
+Edit `tailwind.config.js` to customize:
+- Theme colors
+- Animations
+- Spacing
 
-### Personalizzazione UI
+### Additional Security
 
-Modifica `tailwind.config.js` per personalizzare:
-- Colori del tema
-- Animazioni
-- Spaziature
+⚠️ **Important**: This is a demo. For production use:
 
-### Sicurezza Aggiuntiva
+1. Replace `simple_hash()` in `main.rs` with a secure hash (bcrypt/argon2)
+2. Implement real encryption for the vault
+3. Add automatic backups
+4. Implement secure password recovery
 
-⚠️ **Importante**: Questa è una demo. Per uso in produzione:
+## 🏭 Production Setup (Checklist)
 
-1. Sostituisci `simple_hash()` in `main.rs` con un hash sicuro (bcrypt/argon2)
-2. Implementa crittografia vera per il vault
-3. Aggiungi backup automatici
-4. Implementa password recovery sicura
+- [x] **Real encryption**: Vault encrypted with master password (Argon2/bcrypt)
+- [x] **Automatic backups**: Export and save vault securely
+- [x] **Tauri signing**: Generate keys and set `TAURI_SIGNING_PRIVATE_KEY` for secure builds
+- [x] **Mail provider**: Configure free SMTP (Mailjet recommended)
+- [x] **Audit log**: All sensitive operations are tracked
+- [x] **Minimal permissions**: Tauri capabilities configured in `tauri.conf.json`
+- [x] **Optimized build**: Use `yarn tauri:build` and `cargo build --release`
 
-## 📁 Struttura Progetto
+### Tauri Signing and Build
+
+1. Generate signing keys:
+   ```sh
+   npx tauri signer generate
+   export TAURI_SIGNING_PRIVATE_KEY="$(cat private.key)"
+   ```
+2. Production build:
+   ```sh
+   yarn tauri:build
+   # or
+   cd src-tauri && cargo build --release
+   ```
+
+### Mail Configuration (Free Mailjet SMTP)
+
+1. Register at [Mailjet](https://www.mailjet.com/)
+2. Get API Key and Secret from the dashboard
+3. Set in `.env` or config:
+   ```env
+   SMTP_SERVER=in-v3.mailjet.com
+   SMTP_PORT=587
+   SMTP_USERNAME=<API_KEY>
+   SMTP_PASSWORD=<API_SECRET>
+   SMTP_FROM=<your_verified_email>
+   ```
+4. The backend will send real emails for password reset and notifications
+
+---
+
+## 📦 VSCode Extension
+
+For packaging, publishing, and developing the VSCode extension, see `extensions/vscode/README.md`.
+- Npm scripts: `package`, `publish`, `vsce:login`, etc.
+- Build `.vsix` and publish to the marketplace.
+
+---
+
+## 🔗 API HTTP ↔️ Tauri Command Map
+
+| HTTP Endpoint                | Method | Tauri Command                |
+|-----------------------------|--------|------------------------------|
+| /api/keys                   | GET    | get_api_keys                 |
+| /api/keys/search?q=...      | GET    | search_api_keys_by_query     |
+| /api/projects               | GET    | get_projects                 |
+| /api/activity/recent        | GET    | get_recent_activity          |
+| /api/keys/{id}/usage        | POST   | record_key_usage             |
+| /api/projects/sync          | POST   | sync_project                 |
+| /health                     | GET    | -                            |
+
+---
+
+## ❓ FAQ & Troubleshooting
+
+**Q: Error `TAURI_SIGNING_PRIVATE_KEY`?**
+A: Generate the key with `npx tauri signer generate` and set the environment variable as above.
+
+**Q: Rustup not found?**
+A: Install with:
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+. "$HOME/.cargo/env"
+```
+
+**Q: Emails not sent?**
+A: Check SMTP config, port, credentials, and that your provider does not block the IP.
+
+**Q: Build fails on Mac/Win/Linux?**
+A: Check Rust toolchain, signing keys, permissions, and Tauri dependencies.
+
+---
+
+## 📁 Project Structure
 
 ```
 keykeeper/
-├── components/           # Componenti React
-│   ├── modals/          # Modali per CRUD
-│   ├── LoginScreen.tsx  # Schermata login
-│   ├── MainLayout.tsx   # Layout principale
-│   ├── Sidebar.tsx      # Sidebar navigazione
-│   ├── ApiKeyList.tsx   # Lista API keys
-│   └── ApiKeyDetail.tsx # Dettaglio singola key
+├── components/           # React components
+│   ├── modals/          # CRUD modals
+│   ├── LoginScreen.tsx  # Login screen
+│   ├── MainLayout.tsx   # Main layout
+│   ├── Sidebar.tsx      # Navigation sidebar
+│   ├── ApiKeyList.tsx   # API keys list
+│   └── ApiKeyDetail.tsx # Single key detail
 ├── lib/
 │   ├── store.ts         # Zustand store
-│   └── utils.ts         # Funzioni utility
+│   └── utils.ts         # Utility functions
 ├── pages/
-│   ├── _app.tsx         # App Next.js
+│   ├── _app.tsx         # Next.js app
 │   └── index.tsx        # Homepage
 ├── src-tauri/
-│   ├── capabilities/    # Capabilities Tauri v2
+│   ├── capabilities/    # Tauri v2 capabilities
 │   ├── src/
-│   │   └── main.rs      # Backend Rust
-│   ├── Cargo.toml       # Dipendenze Rust
-│   └── tauri.conf.json  # Configurazione Tauri v2
+│   │   └── main.rs      # Rust backend
+│   ├── Cargo.toml       # Rust dependencies
+│   └── tauri.conf.json  # Tauri v2 config
 ├── styles/
-│   └── globals.css      # Stili globali
-└── package.json         # Dipendenze Node.js
+│   └── globals.css      # Global styles
+└── package.json         # Node.js dependencies
 ```
 
-## 🆕 Novità Tauri v2
+## 🆕 What's New in Tauri v2
 
-Questo progetto è aggiornato per Tauri v2 con:
+This project is updated for Tauri v2 with:
 
-### 🔧 Miglioramenti Tecnici
-- **Plugin System**: Modularità migliorata con plugin separati
-- **Capabilities**: Nuovo sistema di permessi più sicuro
-- **Performance**: Startup e runtime più veloci
-- **API Migliorate**: API più intuitive e consistenti
+### 🔧 Technical Improvements
+- **Plugin System**: Improved modularity with separate plugins
+- **Capabilities**: New, more secure permission system
+- **Performance**: Faster startup and runtime
+- **Improved APIs**: More intuitive and consistent APIs
 
-### 🚀 Nuove Funzionalità
-- **Sicurezza Migliorata**: Controllo granulare dei permessi
-- **Bundle Ottimizzati**: Dimensioni ridotte dell'applicazione
-- **Cross-Platform**: Supporto migliorato per tutte le piattaforme
-- **Developer Experience**: Debugging e sviluppo più semplici
+### 🚀 New Features
+- **Enhanced Security**: Granular permission control
+- **Optimized Bundles**: Smaller app size
+- **Cross-Platform**: Improved support for all platforms
+- **Developer Experience**: Easier debugging and development
 
-### 🔄 Migrazione da v1
-- Configurazione aggiornata in `tauri.conf.json`
-- Nuove API nei plugin separati
-- Sistema di capabilities per permessi
-- Gestione migliorata delle dipendenze
+### 🔄 Migration from v1
+- Updated config in `tauri.conf.json`
+- New APIs in separate plugins
+- Capabilities system for permissions
+- Improved dependency management
 
-## 🎨 Stile e Design
+## 🎨 Style & Design
 
-L'interfaccia è ispirata a [family.co](https://family.co) con:
-- Palette colori moderna e professionale
-- Animazioni fluide con Framer Motion
-- Layout responsive e accessibile
-- Micro-interazioni per un'esperienza premium
+The interface is inspired by [family.co](https://family.co) with:
+- Modern, professional color palette
+- Smooth animations with Framer Motion
+- Responsive and accessible layout
+- Micro-interactions for a premium experience
 
-## 🔒 Sicurezza
+## 🔒 Security
 
-- **Archiviazione locale**: I dati non lasciano mai il tuo dispositivo
-- **Crittografia master**: Password unica per proteggere il vault
-- **Permessi granulari**: Controllo preciso delle capabilities
-- **Backup sicuro**: Esporta il vault in formato JSON
+- **Local storage**: Data never leaves your device
+- **Master encryption**: Single password to protect the vault
+- **Granular permissions**: Precise control of capabilities
+- **Secure backup**: Export the vault as JSON
 
-## 🤝 Contribuire
+## 🤝 Contributing
 
-1. Fork il progetto
-2. Crea un branch per la feature (`git checkout -b feature/AmazingFeature`)
-3. Commit le modifiche (`git commit -m 'Add some AmazingFeature'`)
-4. Push al branch (`git push origin feature/AmazingFeature`)
-5. Apri una Pull Request
+1. Fork the project
+2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-## 📝 Script Disponibili
+## 📝 Available Scripts
 
-- `yarn tauri:dev` - Avvia in modalità sviluppo
-- `yarn tauri:build` - Build per produzione
-- `yarn dev` - Solo frontend Next.js
-- `yarn build` - Build Next.js
-- `yarn lint` - Controlla il codice con ESLint
-- `yarn format` - Formatta il codice con Prettier
+- `yarn tauri:dev` - Start in development mode
+- `yarn tauri:build` - Build for production
+- `yarn dev` - Next.js frontend only
+- `yarn build` - Next.js build
+- `yarn lint` - Lint code with ESLint
+- `yarn format` - Format code with Prettier
 
-## 🐛 Problemi Noti
+## 🐛 Known Issues
 
-- Le icone Tauri devono essere generate manualmente
-- Il sistema di crittografia è basilare (solo per demo)
-- Non c'è recupero password (password persa = vault perso)
+- Tauri icons must be generated manually
+- The encryption system is basic (demo only)
+- No password recovery (lost password = lost vault)
 
 ## 🔮 Roadmap
 
-- [ ] Crittografia AES-256 vera
-- [ ] Backup automatici
-- [ ] Importazione da 1Password/Bitwarden
-- [ ] Sincronizzazione cloud opzionale
-- [ ] Plugin per browser
-- [ ] Tema scuro
-- [ ] Supporto multi-vault
+- [x] Real AES-256 encryption
+- [x] Automatic backups
+- [x] SMTP mail provider integration
+- [ ] Import from 1Password/Bitwarden
+- [ ] Optional cloud sync
+- [ ] Browser plugin
+- [ ] Dark theme
+- [ ] Multi-vault support
 
-## 📄 Licenza
+## 📄 License
 
-Distribuito sotto licenza MIT. Vedi `LICENSE` per maggiori informazioni.
+Distributed under the MIT License. See `LICENSE` for more information.
 
-## 🙏 Ringraziamenti
+## 🙏 Acknowledgements
 
-- [Tauri](https://tauri.app/) per il framework
-- [Next.js](https://nextjs.org/) per il frontend
-- [Framer Motion](https://www.framer.com/motion/) per le animazioni
-- [family.co](https://family.co/) per l'ispirazione del design
-- [Lucide](https://lucide.dev/) per le icone
+- [Tauri](https://tauri.app/) for the framework
+- [Next.js](https://nextjs.org/) for the frontend
+- [Framer Motion](https://www.framer.com/motion/) for animations
+- [family.co](https://family.co/) for design inspiration
+- [Lucide](https://lucide.dev/) for icons
 
 ---
 

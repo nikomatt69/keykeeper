@@ -147,8 +147,8 @@ export class TauriAPI {
         return await invoke('check_biometric_support');
     }
 
-    static async enableBiometricAuth(userId: string, credentialName: string): Promise<string> {
-        return await invoke('enable_biometric_auth', { userId, credentialName });
+    static async getBiometricCredentials(): Promise<any[]> {
+        return await invoke('get_biometric_credentials');
     }
 
     static async authenticateBiometric(credentialId: string): Promise<string> {
@@ -173,6 +173,19 @@ export class TauriAPI {
 
     static async invalidateBiometricSessions(userId: string): Promise<void> {
         return await invoke('invalidate_biometric_sessions', { userId });
+    }
+
+    static async updateUsername(newUsername: string): Promise<void> {
+        return await invoke('update_username', { newUsername });
+    }
+    static async enableBiometricAuth(userId: string, credentialName: string): Promise<string> {
+        return await invoke('enable_biometric_auth', { userId, credentialName });
+    }
+    static async disableBiometricAuth(userId: string): Promise<void> {
+        return await invoke('invalidate_biometric_sessions', { userId });
+    }
+    static async getUserAccount(): Promise<any> {
+        return await invoke('get_user_account');
     }
 }
 
