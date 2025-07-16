@@ -99,9 +99,8 @@ export default function SettingsScreen() {
     useEffect(() => {
         const initializeService = async () => {
             try {
-                await integrationService.initialize(settings)
-
-                // Check VSCode connection status
+                // Integration service is now initialized when vault is unlocked
+                // Just check VSCode connection status
                 const connected = await integrationService.checkVSCodeConnection()
                 setVSCodeStatus(integrationService.getVSCodeStatus())
 

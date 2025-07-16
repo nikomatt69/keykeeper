@@ -30,6 +30,9 @@ export function activate(context: vscode.ExtensionContext) {
     projectsProvider = new ProjectsProvider(keykeeperService);
     recentProvider = new RecentProvider(keykeeperService);
 
+    // Note: VSCode extensions cannot use Tauri APIs directly
+    // Communication with the main app is handled through HTTP API calls
+
     // Auto-detect workspace and activate context
     detectAndActivateWorkspace(context);
 
@@ -81,6 +84,9 @@ export function activate(context: vscode.ExtensionContext) {
     if (config.get('autoSync')) {
         startAutoSync();
     }
+
+    // Start periodic workspace sync
+    startWorkspaceSync();
 
     // Show welcome message
     vscode.window.showInformationMessage(
@@ -160,6 +166,9 @@ function startAutoSync() {
 // ===============================
 
 async function detectAndActivateWorkspace(context: vscode.ExtensionContext) {
+    // Send initial workspace folders to main app
+    await sendCurrentWorkspaceFolders();
+
     // Check current workspace
     if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
         const workspaceFolder = vscode.workspace.workspaceFolders[0];
@@ -168,6 +177,9 @@ async function detectAndActivateWorkspace(context: vscode.ExtensionContext) {
 
     // Listen for workspace changes
     const workspaceWatcher = vscode.workspace.onDidChangeWorkspaceFolders(async (event) => {
+        // Send updated workspace folders to main app
+        await sendCurrentWorkspaceFolders();
+        
         if (event.added.length > 0) {
             const newFolder = event.added[0];
             await checkAndActivateProjectContext(newFolder.uri.fsPath);
@@ -408,4 +420,37 @@ async function refreshProviders() {
     } catch (error) {
         console.error('Error refreshing providers:', error);
     }
+}
+
+async function sendCurrentWorkspaceFolders() {
+    try {
+        const workspaceFolders = vscode.workspace.workspaceFolders;
+        if (!workspaceFolders || workspaceFolders.length === 0) {
+            // Send empty array to indicate no workspaces open
+            await keykeeperService.sendWorkspaceFolders([]);
+            return;
+        }
+
+        const workspacePaths = workspaceFolders.map(folder => folder.uri.fsPath);
+        const success = await keykeeperService.sendWorkspaceFolders(workspacePaths);
+        
+        if (success) {
+            console.log(`Successfully sent ${workspacePaths.length} workspace folders to KeyKeeper`);
+        } else {
+            console.warn('Failed to send workspace folders to KeyKeeper');
+        }
+    } catch (error) {
+        console.error('Error sending workspace folders:', error);
+    }
+}
+
+function startWorkspaceSync() {
+    // Send workspace folders every 30 seconds to keep main app in sync
+    setInterval(async () => {
+        try {
+            await sendCurrentWorkspaceFolders();
+        } catch (error) {
+            console.error('Workspace sync error:', error);
+        }
+    }, 30000);
 } 

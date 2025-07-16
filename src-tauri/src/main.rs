@@ -91,6 +91,11 @@ pub struct ApiKey {
     pub updated_at: String,
     pub tags: Vec<String>,
     pub is_active: bool,
+    // Informazioni per chiavi importate da .env
+    pub source_type: Option<String>, // "manual" | "env_file"
+    pub env_file_path: Option<String>,
+    pub project_path: Option<String>,
+    pub env_file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -205,6 +210,16 @@ pub struct ProjectEnvAssociation {
     pub created_at: String,
     pub last_accessed: String,
     pub is_active: bool,
+    pub vscode_status: Option<String>, // "open", "closed", "unknown"
+    pub last_vscode_check: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VSCodeWorkspace {
+    pub path: String,
+    pub name: String,
+    pub is_open: bool,
+    pub last_updated: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -237,6 +252,7 @@ pub struct ApiKeyVault {
     pub env_associations: Vec<ProjectEnvAssociation>,
     pub biometric_sessions: Vec<BiometricSession>,
     pub webauthn_challenges: Vec<WebAuthnChallenge>,
+    pub vscode_workspaces: Vec<VSCodeWorkspace>,
 }
 
 impl Default for ApiKeyVault {
@@ -255,6 +271,7 @@ impl Default for ApiKeyVault {
             env_associations: Vec::new(),
             biometric_sessions: Vec::new(),
             webauthn_challenges: Vec::new(),
+            vscode_workspaces: Vec::new(),
         }
     }
 }
@@ -1144,6 +1161,8 @@ async fn associate_project_with_env(
         created_at: get_utc_timestamp(),
         last_accessed: get_utc_timestamp(),
         is_active: true,
+        vscode_status: Some("unknown".to_string()),
+        last_vscode_check: None,
     };
     
     if let Some(index) = existing_index {
@@ -1464,6 +1483,156 @@ async fn invalidate_biometric_sessions(
     save_vault(&state).await?;
     log_audit_event(&state, "invalidate_sessions", "user", Some(&user_id), true, None).await;
     
+    Ok(())
+}
+
+#[tauri::command]
+async fn update_vscode_workspaces(
+    workspaces: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+    
+    let mut vault_guard = state.vault.lock().await;
+    
+    // Clear existing workspaces
+    vault_guard.vscode_workspaces.clear();
+    
+    // Add new workspaces
+    let timestamp = get_utc_timestamp();
+    for workspace_path in workspaces {
+        let workspace_name = std::path::Path::new(&workspace_path)
+            .file_name()
+            .unwrap_or_else(|| std::ffi::OsStr::new("unknown"))
+            .to_string_lossy()
+            .to_string();
+            
+        vault_guard.vscode_workspaces.push(VSCodeWorkspace {
+            path: workspace_path.clone(),
+            name: workspace_name,
+            is_open: true,
+            last_updated: timestamp.clone(),
+        });
+    }
+    
+    // Update VSCode status for project associations
+    let workspaces_clone = vault_guard.vscode_workspaces.clone();
+    for assoc in &mut vault_guard.env_associations {
+        let is_open = workspaces_clone.iter().any(|ws| 
+            ws.path == assoc.project_path || assoc.project_path.starts_with(&ws.path)
+        );
+        
+        assoc.vscode_status = Some(if is_open { "open" } else { "closed" }.to_string());
+        assoc.last_vscode_check = Some(timestamp.clone());
+    }
+    
+    drop(vault_guard);
+    save_vault(&state).await?;
+    log_audit_event(&state, "update_vscode_workspaces", "workspace", None, true, None).await;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_vscode_workspaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<VSCodeWorkspace>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+    
+    let vault_guard = state.vault.lock().await;
+    Ok(vault_guard.vscode_workspaces.clone())
+}
+
+#[tauri::command]
+async fn get_project_vscode_status(
+    project_path: String,
+    state: State<'_, AppState>,
+) -> Result<Option<String>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+    
+    let vault_guard = state.vault.lock().await;
+    
+    // Check if project is in VSCode workspaces
+    let is_open = vault_guard.vscode_workspaces.iter().any(|ws| 
+        ws.path == project_path || project_path.starts_with(&ws.path)
+    );
+    
+    if is_open {
+        Ok(Some("open".to_string()))
+    } else {
+        // Check if we have any VSCode workspaces at all
+        if vault_guard.vscode_workspaces.is_empty() {
+            Ok(Some("unknown".to_string()))
+        } else {
+            Ok(Some("closed".to_string()))
+        }
+    }
+}
+
+#[tauri::command]
+async fn open_folder(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open folder: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_file(path: String) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", &path])
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&path)
+            .spawn()
+            .map_err(|e| format!("Failed to open file: {}", e))?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn open_in_vscode(path: String) -> Result<(), String> {
+    std::process::Command::new("code")
+        .arg(&path)
+        .spawn()
+        .map_err(|e| format!("Failed to open in VSCode: {}", e))?;
     Ok(())
 }
 
@@ -1897,6 +2066,152 @@ async fn handle_vscode_connection_enterprise(
                 );
                 let _ = stream.write_all(response.as_bytes()).await;
             },
+            ("POST", "/api/vscode/workspaces") => {
+                if *is_unlocked.lock().await {
+                    // Parse request body
+                    let body_start = request.find("\r\n\r\n").unwrap_or(request.len());
+                    let body = if body_start + 4 < request.len() {
+                        &request[body_start + 4..]
+                    } else {
+                        ""
+                    };
+                    
+                    if let Ok(request_data) = serde_json::from_str::<serde_json::Value>(body) {
+                        if let Some(workspaces) = request_data["workspaces"].as_array() {
+                            let workspace_paths: Vec<String> = workspaces
+                                .iter()
+                                .filter_map(|w| w.as_str().map(|s| s.to_string()))
+                                .collect();
+                            
+                            let mut vault_guard = vault.lock().await;
+                            
+                            // Clear existing workspaces
+                            vault_guard.vscode_workspaces.clear();
+                            
+                            // Add new workspaces
+                            let timestamp = get_utc_timestamp();
+                            for workspace_path in workspace_paths {
+                                let workspace_name = std::path::Path::new(&workspace_path)
+                                    .file_name()
+                                    .unwrap_or_else(|| std::ffi::OsStr::new("unknown"))
+                                    .to_string_lossy()
+                                    .to_string();
+                                    
+                                vault_guard.vscode_workspaces.push(VSCodeWorkspace {
+                                    path: workspace_path.clone(),
+                                    name: workspace_name,
+                                    is_open: true,
+                                    last_updated: timestamp.clone(),
+                                });
+                            }
+                            
+                            // Update VSCode status for project associations
+                            let workspaces_clone = vault_guard.vscode_workspaces.clone();
+                            for assoc in &mut vault_guard.env_associations {
+                                let is_open = workspaces_clone.iter().any(|ws| 
+                                    ws.path == assoc.project_path || assoc.project_path.starts_with(&ws.path)
+                                );
+                                
+                                assoc.vscode_status = Some(if is_open { "open" } else { "closed" }.to_string());
+                                assoc.last_vscode_check = Some(timestamp.clone());
+                            }
+                            
+                            let response = format!(
+                                "HTTP/1.1 200 OK\r\n{}\r\n{{\"success\":true,\"updated\":{},\"timestamp\":\"{}\"}}",
+                                security_headers,
+                                vault_guard.vscode_workspaces.len(),
+                                timestamp
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        } else {
+                            let response = format!(
+                                "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Invalid workspaces format\"}}",
+                                security_headers
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        }
+                    } else {
+                        let response = format!(
+                            "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Invalid JSON body\"}}",
+                            security_headers
+                        );
+                        let _ = stream.write_all(response.as_bytes()).await;
+                    }
+                } else {
+                    let response = format!(
+                        "HTTP/1.1 403 Forbidden\r\n{}\r\n{{\"error\":\"Vault is locked\"}}",
+                        security_headers
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            },
+            ("GET", "/api/vscode/workspaces") => {
+                if *is_unlocked.lock().await {
+                    let vault_guard = vault.lock().await;
+                    let json_workspaces = serde_json::to_string(&vault_guard.vscode_workspaces).unwrap_or_default();
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\n{}\r\n{}",
+                        security_headers,
+                        json_workspaces
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                } else {
+                    let response = format!(
+                        "HTTP/1.1 403 Forbidden\r\n{}\r\n{{\"error\":\"Vault is locked\"}}",
+                        security_headers
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            },
+            ("GET", "/api/vscode/status") => {
+                if *is_unlocked.lock().await {
+                    if let Some(query_str) = query_params {
+                        if let Some(project_start) = query_str.find("projectPath=") {
+                            let project_path = &query_str[project_start + 12..];
+                            let project_path = project_path.split('&').next().unwrap_or("");
+                            let project_path = urlencoding::decode(project_path).unwrap_or_default();
+                            
+                            let vault_guard = vault.lock().await;
+                            let is_open = vault_guard.vscode_workspaces.iter().any(|ws| 
+                                ws.path == project_path || project_path.starts_with(&ws.path)
+                            );
+                            
+                            let status = if is_open {
+                                "open"
+                            } else if vault_guard.vscode_workspaces.is_empty() {
+                                "unknown"
+                            } else {
+                                "closed"
+                            };
+                            
+                            let response = format!(
+                                "HTTP/1.1 200 OK\r\n{}\r\n{{\"status\":\"{}\"}}",
+                                security_headers,
+                                status
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        } else {
+                            let response = format!(
+                                "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Missing projectPath parameter\"}}",
+                                security_headers
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        }
+                    } else {
+                        let response = format!(
+                            "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Missing query parameters\"}}",
+                            security_headers
+                        );
+                        let _ = stream.write_all(response.as_bytes()).await;
+                    }
+                } else {
+                    let response = format!(
+                        "HTTP/1.1 403 Forbidden\r\n{}\r\n{{\"error\":\"Vault is locked\"}}",
+                        security_headers
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            },
             _ => {
                 let response = format!(
                     "HTTP/1.1 404 Not Found\r\n{}\r\n{{\"error\":\"Not found\",\"method\":\"{}\",\"path\":\"{}\"}}",
@@ -2013,7 +2328,13 @@ pub fn run() {
             get_user_preferences,
             create_passkey_challenge,
             verify_passkey_challenge,
-            invalidate_biometric_sessions
+            invalidate_biometric_sessions,
+            update_vscode_workspaces,
+            get_vscode_workspaces,
+            get_project_vscode_status,
+            open_folder,
+            open_file,
+            open_in_vscode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

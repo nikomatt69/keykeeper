@@ -1,6 +1,8 @@
 import { create } from 'zustand'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnterpriseSettings } from './types'
+import type { VSCodeWorkspace } from './tauri-api'
+import { integrationService } from './services/integrationService'
 
 export interface ApiKey {
   id: string
@@ -16,6 +18,11 @@ export interface ApiKey {
   updated_at: string
   tags: string[]
   is_active: boolean
+  // Informazioni per chiavi importate da .env
+  source_type?: 'manual' | 'env_file'
+  env_file_path?: string
+  project_path?: string
+  env_file_name?: string
 }
 
 // Default settings
@@ -118,6 +125,10 @@ interface AppState {
   // Settings
   settings: EnterpriseSettings
 
+  // VSCode Workspace state
+  vscodeWorkspaces: VSCodeWorkspace[]
+  lastWorkspaceUpdate: Date | null
+
   // Actions
   setIsUnlocked: (unlocked: boolean) => void
   setIsLoading: (loading: boolean) => void
@@ -145,6 +156,11 @@ interface AppState {
   deleteApiKey: (id: string) => Promise<void>
   searchApiKeys: (query: string) => Promise<void>
   exportVault: () => Promise<string>
+  
+  // VSCode Workspace Actions
+  loadVSCodeWorkspaces: () => Promise<void>
+  updateVSCodeWorkspaces: (workspaces: string[]) => Promise<void>
+  getProjectVSCodeStatus: (projectPath: string) => Promise<string>
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -164,6 +180,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   showSettingsModal: false,
   sidebarCollapsed: false,
   settings: defaultSettings,
+  vscodeWorkspaces: [],
+  lastWorkspaceUpdate: null,
 
   // Simple setters
   setIsUnlocked: (unlocked) => set({ isUnlocked: unlocked }),
@@ -213,6 +231,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ isUnlocked: success })
       if (success) {
         await get().loadApiKeys()
+        
+        // Initialize integration service with current settings
+        try {
+          const { settings } = get()
+          await integrationService.initialize(settings)
+        } catch (error) {
+          console.error('Failed to initialize integration service:', error)
+          // Don't fail the unlock process if integration service fails
+        }
       }
       return success
     } catch (error) {
@@ -226,6 +253,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   lockVault: async () => {
     try {
       await invoke('lock_vault')
+      
+      // Reset integration service
+      integrationService.reset()
+      
       set({
         isUnlocked: false,
         apiKeys: [],
@@ -259,6 +290,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         id: crypto.randomUUID(),
         created_at: now,
         updated_at: now,
+        source_type: keyData.source_type || 'manual',
+        env_file_path: keyData.env_file_path || undefined,
+        project_path: keyData.project_path || undefined,
+        env_file_name: keyData.env_file_name || undefined,
       }
       await invoke('add_api_key', { apiKey: newKey })
       await get().loadApiKeys()
@@ -354,6 +389,41 @@ export const useAppStore = create<AppState>((set, get) => ({
       return false
     } finally {
       set({ isLoading: false })
+    }
+  },
+
+  // VSCode Workspace Actions
+  loadVSCodeWorkspaces: async () => {
+    try {
+      set({ isLoading: true, error: null })
+      const workspaces = await invoke<VSCodeWorkspace[]>('get_vscode_workspaces')
+      set({ vscodeWorkspaces: workspaces, lastWorkspaceUpdate: new Date() })
+    } catch (error) {
+      set({ error: error as string })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  updateVSCodeWorkspaces: async (workspaces: string[]) => {
+    try {
+      set({ isLoading: true, error: null })
+      await invoke('update_vscode_workspaces', { workspaces })
+      await get().loadVSCodeWorkspaces()
+    } catch (error) {
+      set({ error: error as string })
+    } finally {
+      set({ isLoading: false })
+    }
+  },
+
+  getProjectVSCodeStatus: async (projectPath: string) => {
+    try {
+      const status = await invoke<string | null>('get_project_vscode_status', { projectPath })
+      return status || 'unknown'
+    } catch (error) {
+      console.error('Failed to get project VSCode status:', error)
+      return 'unknown'
     }
   },
 }))

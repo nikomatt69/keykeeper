@@ -71,6 +71,13 @@ export interface DroppedEnvFile {
     keys: EnvVariable[];
 }
 
+export interface VSCodeWorkspace {
+    path: string;
+    name: string;
+    is_open: boolean;
+    last_updated: string;
+}
+
 export class KeyKeeperService {
     private client: AxiosInstance;
     private ws: WebSocket | null = null;
@@ -95,8 +102,8 @@ export class KeyKeeperService {
             timeout: 10000, // Increased timeout for enterprise
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'KeyKeeper-VSCode-Extension/2.0.0-Enterprise',
-                'X-Extension-Version': '2.0.0-enterprise',
+                'User-Agent': 'KeyKeeper-VSCode-Extension/2.1.1-Enterprise', // TODO: Update version
+                'X-Extension-Version': '2.1.1-enterprise',
                 'X-VSCode-Version': vscode.version,
                 'X-Client-Type': 'vscode-extension',
                 'X-Connection-ID': this.connectionId,
@@ -195,7 +202,7 @@ export class KeyKeeperService {
     private async validateKeyUsageSecurity(key: ApiKey): Promise<void> {
         const config = vscode.workspace.getConfiguration('keykeeper');
         const showWarnings = config.get<boolean>('enterprise.securityWarnings', true);
-        
+
         if (!showWarnings) return;
 
         // Check if key is being used in a potentially unsafe context
@@ -433,8 +440,8 @@ export class KeyKeeperService {
 
     async getProjectEnvAssociations(projectPath?: string): Promise<ProjectEnvAssociation[]> {
         try {
-            const url = projectPath ? 
-                `/api/env/associations?projectPath=${encodeURIComponent(projectPath)}` : 
+            const url = projectPath ?
+                `/api/env/associations?projectPath=${encodeURIComponent(projectPath)}` :
                 '/api/env/associations';
             const response = await this.client.get(url);
             return response.data;
@@ -453,6 +460,40 @@ export class KeyKeeperService {
         } catch (error: any) {
             console.error('Error activating project context:', error);
             return false;
+        }
+    }
+
+    async sendWorkspaceFolders(workspacePaths: string[]): Promise<boolean> {
+        try {
+            const response = await this.client.post('/api/vscode/workspaces', {
+                workspaces: workspacePaths
+            });
+            this.logAuditEvent('workspace_update', 'success', `Updated ${workspacePaths.length} workspace folders`);
+            return response.data.success !== false;
+        } catch (error: any) {
+            this.logAuditEvent('workspace_update', 'error', `Failed to update workspace folders: ${error.message}`);
+            console.error('Error sending workspace folders:', error);
+            return false;
+        }
+    }
+
+    async getVSCodeWorkspaces(): Promise<VSCodeWorkspace[]> {
+        try {
+            const response = await this.client.get('/api/vscode/workspaces');
+            return response.data || [];
+        } catch (error: any) {
+            console.error('Error getting VSCode workspaces:', error);
+            return [];
+        }
+    }
+
+    async getProjectVSCodeStatus(projectPath: string): Promise<string> {
+        try {
+            const response = await this.client.get(`/api/vscode/status?projectPath=${encodeURIComponent(projectPath)}`);
+            return response.data.status || 'unknown';
+        } catch (error: any) {
+            console.error('Error getting project VSCode status:', error);
+            return 'unknown';
         }
     }
 } 

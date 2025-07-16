@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
 import {
   X,
@@ -13,19 +13,40 @@ import {
   Shield,
   AlertCircle,
   CheckCircle2,
-  Clock
+  Clock,
+  FileText
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
+import ProjectPathDisplay from './ProjectPathDisplay'
 
 export default function ApiKeyDetail() {
   const {
     selectedKey,
     setSelectedKey,
     setShowEditModal,
-    setShowDeleteModal
+    setShowDeleteModal,
+    getProjectVSCodeStatus
   } = useAppStore()
 
   const [keyVisible, setKeyVisible] = useState(false)
+  const [vscodeStatus, setVscodeStatus] = useState<string>('unknown')
+
+  // Carica lo stato VSCode per la chiave selezionata
+  useEffect(() => {
+    const loadVSCodeStatus = async () => {
+      if (selectedKey?.source_type === 'env_file' && selectedKey?.project_path) {
+        try {
+          const status = await getProjectVSCodeStatus(selectedKey.project_path)
+          setVscodeStatus(status)
+        } catch (error) {
+          console.error('Error getting VSCode status:', error)
+          setVscodeStatus('unknown')
+        }
+      }
+    }
+
+    loadVSCodeStatus()
+  }, [selectedKey, getProjectVSCodeStatus])
 
   if (!selectedKey) return null
 
@@ -56,18 +77,6 @@ export default function ApiKeyDetail() {
     return key.slice(0, 8) + '•'.repeat(Math.max(0, key.length - 12)) + key.slice(-4)
   }
 
-  const isExpiringSoon = (expiresAt?: string) => {
-    if (!expiresAt) return false
-    const expiryDate = new Date(expiresAt)
-    const now = new Date()
-    const daysUntilExpiry = Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-    return daysUntilExpiry <= 30 && daysUntilExpiry > 0
-  }
-
-  const isExpired = (expiresAt?: string) => {
-    if (!expiresAt) return false
-    return new Date(expiresAt) < new Date()
-  }
 
   const getDaysUntilExpiry = (expiresAt?: string) => {
     if (!expiresAt) return null
@@ -211,6 +220,26 @@ export default function ApiKeyDetail() {
           <div className="glass-card p-4">
             <h3 className="text-heading mb-3">Description</h3>
             <p className="text-body leading-relaxed">{selectedKey.description}</p>
+          </div>
+        )}
+
+        {/* Source Information (for env_file keys) */}
+        {selectedKey.source_type === 'env_file' && selectedKey.project_path && (
+          <div className="glass-card p-4">
+            <h3 className="text-heading mb-3 flex items-center space-x-2">
+              <FileText className="h-4 w-4" />
+              <span>Source Information</span>
+            </h3>
+            <div className="space-y-4">
+              <ProjectPathDisplay
+                envFilePath={selectedKey.env_file_path || ''}
+                projectPath={selectedKey.project_path}
+                fileName={selectedKey.env_file_name || '.env'}
+                vscodeStatus={vscodeStatus}
+                showActions={true}
+                className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg"
+              />
+            </div>
           </div>
         )}
 

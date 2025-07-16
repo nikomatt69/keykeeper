@@ -29,6 +29,7 @@ class IntegrationService {
     private notifications: NotificationData[] = []
     private backupInProgress = false
     private lastBackup: Date | null = null
+    private initialized = false
 
     // VSCode Integration
     async checkVSCodeConnection(): Promise<boolean> {
@@ -306,6 +307,13 @@ class IntegrationService {
 
     // Initialize service
     async initialize(settings: EnterpriseSettings): Promise<void> {
+        // Prevent duplicate initialization
+        if (this.initialized) {
+            return
+        }
+        
+        this.initialized = true
+
         // Start VSCode integration if enabled
         if (settings.integrations.vscode.enabled) {
             await this.enableVSCodeIntegration(true)
@@ -333,6 +341,16 @@ class IntegrationService {
             title: 'KeyKeeper Started',
             message: 'All integrations have been initialized'
         })
+    }
+
+    // Reset service state when vault is locked
+    reset(): void {
+        this.initialized = false
+        this.vscodeStatus = {
+            connected: false,
+            lastHeartbeat: null,
+            connectionCount: 0
+        }
     }
 }
 

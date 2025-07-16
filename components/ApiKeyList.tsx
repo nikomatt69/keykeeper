@@ -7,11 +7,14 @@ import {
   Eye,
   EyeOff,
   Copy,
-  AlertCircle
+  AlertCircle,
+  Folder,
+  FileText
 } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAppStore } from '../lib/store'
 import type { ApiKey } from '../lib/store'
+import VSCodeStatusIndicator from './VSCodeStatusIndicator'
 
 export default function ApiKeyList() {
   const {
@@ -19,10 +22,37 @@ export default function ApiKeyList() {
     selectedKey,
     setSelectedKey,
     isLoading,
-    searchQuery
+    searchQuery,
+    getProjectVSCodeStatus
   } = useAppStore()
 
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
+  const [vscodeStatuses, setVscodeStatuses] = useState<Record<string, string>>({})
+
+  // Carica gli stati VSCode per le chiavi importate da .env
+  useEffect(() => {
+    const loadVSCodeStatuses = async () => {
+      const statuses: Record<string, string> = {}
+      
+      for (const key of filteredKeys) {
+        if (key.source_type === 'env_file' && key.project_path) {
+          try {
+            const status = await getProjectVSCodeStatus(key.project_path)
+            statuses[key.id] = status
+          } catch (error) {
+            console.error('Error getting VSCode status:', error)
+            statuses[key.id] = 'unknown'
+          }
+        }
+      }
+      
+      setVscodeStatuses(statuses)
+    }
+
+    if (filteredKeys.length > 0) {
+      loadVSCodeStatuses()
+    }
+  }, [filteredKeys, getProjectVSCodeStatus])
 
   const toggleKeyVisibility = (keyId: string, e: React.MouseEvent) => {
     e.stopPropagation()
@@ -240,6 +270,33 @@ export default function ApiKeyList() {
                       >
                         {apiKey.description}
                       </p>
+                    )}
+
+                    {/* Informazioni path .env */}
+                    {apiKey.source_type === 'env_file' && apiKey.project_path && (
+                      <div className="space-y-2 pt-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-caption font-medium">Source Project</span>
+                          <VSCodeStatusIndicator 
+                            status={vscodeStatuses[apiKey.id] as 'open' | 'closed' | 'unknown' || 'unknown'}
+                            size="sm"
+                          />
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Folder className="h-3 w-3 text-gray-400" />
+                          <span className="text-caption truncate">
+                            {apiKey.project_path.split('/').pop() || 'Unknown Project'}
+                          </span>
+                        </div>
+                        {apiKey.env_file_name && (
+                          <div className="flex items-center space-x-2">
+                            <FileText className="h-3 w-3 text-gray-400" />
+                            <span className="text-caption truncate">
+                              {apiKey.env_file_name}
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     )}
                   </div>
                 </motion.div>

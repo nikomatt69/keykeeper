@@ -20,6 +20,47 @@ export interface VaultStatus {
     is_unlocked: boolean;
 }
 
+export interface EnvVariable {
+    name: string;
+    value: string;
+    is_secret: boolean;
+}
+
+export interface DroppedEnvFile {
+    path: string;
+    project_path: string;
+    file_name: string;
+    keys: EnvVariable[];
+}
+
+export interface ProjectEnvAssociation {
+    id: string;
+    project_path: string;
+    env_file_path: string;
+    env_file_name: string;
+    created_at: string;
+    last_accessed: string;
+    is_active: boolean;
+}
+
+export interface PersistentSession {
+    session_id: string;
+    user_id: string;
+    created_at: string;
+    expires_at: string;
+    last_accessed: string;
+    device_info: string;
+    is_remember_me: boolean;
+    is_active: boolean;
+}
+
+export interface VSCodeWorkspace {
+    path: string;
+    name: string;
+    is_open: boolean;
+    last_updated: string;
+}
+
 export class TauriAPI {
     // Authentication & Vault Management
     static async unlockVault(password: string): Promise<boolean> {
@@ -97,6 +138,87 @@ export class TauriAPI {
     // Audit logging
     static async getAuditLogs(): Promise<any[]> {
         return await invoke('get_audit_logs');
+    }
+
+    // Environment file parsing and project association
+    static async parseAndRegisterEnvFile(filePath: string): Promise<DroppedEnvFile> {
+        return await invoke('parse_and_register_env_file', { filePath });
+    }
+
+    static async associateProjectWithEnv(projectPath: string, envPath: string, fileName: string): Promise<void> {
+        return await invoke('associate_project_with_env', { projectPath, envPath, fileName });
+    }
+
+    static async getProjectEnvAssociations(projectPath?: string): Promise<ProjectEnvAssociation[]> {
+        return await invoke('get_project_env_associations', { projectPath });
+    }
+
+    static async activateProjectContext(projectPath: string): Promise<boolean> {
+        return await invoke('activate_project_context', { projectPath });
+    }
+
+    // Session Management
+    static async createRememberMeSession(userId: string, timeoutMinutes: number): Promise<string> {
+        return await invoke('create_remember_me_session', { userId, timeoutMinutes });
+    }
+
+    static async validateRememberMeSession(sessionId: string): Promise<boolean> {
+        return await invoke('validate_remember_me_session', { sessionId });
+    }
+
+    static async restoreSessionOnStartup(): Promise<boolean> {
+        return await invoke('restore_session_on_startup');
+    }
+
+    static async getPersistentSessions(): Promise<PersistentSession[]> {
+        return await invoke('get_persistent_sessions');
+    }
+
+    static async revokePersistentSession(sessionId: string): Promise<void> {
+        return await invoke('revoke_persistent_session', { sessionId });
+    }
+
+    static async cleanupAllSessions(): Promise<void> {
+        return await invoke('cleanup_all_sessions');
+    }
+
+    // VSCode Workspace Tracking
+    static async updateVSCodeWorkspaces(workspaces: string[]): Promise<void> {
+        return await invoke('update_vscode_workspaces', { workspaces });
+    }
+
+    static async getVSCodeWorkspaces(): Promise<VSCodeWorkspace[]> {
+        return await invoke('get_vscode_workspaces');
+    }
+
+    static async getProjectVSCodeStatus(projectPath: string): Promise<string | null> {
+        return await invoke('get_project_vscode_status', { projectPath });
+    }
+
+    // File System Operations
+    static async openFolder(path: string): Promise<void> {
+        return await invoke('open_folder', { path });
+    }
+
+    static async openFile(path: string): Promise<void> {
+        return await invoke('open_file', { path });
+    }
+
+    static async openInVSCode(path: string): Promise<void> {
+        return await invoke('open_in_vscode', { path });
+    }
+
+    // Window Management
+    static async showWindow(): Promise<void> {
+        return await invoke('show_window');
+    }
+
+    static async hideWindow(): Promise<void> {
+        return await invoke('hide_window');
+    }
+
+    static async quitApplication(): Promise<void> {
+        return await invoke('quit_application');
     }
 
     // Helper methods for common operations

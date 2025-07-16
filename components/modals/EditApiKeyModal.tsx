@@ -96,25 +96,25 @@ export default function EditApiKeyModal() {
           initial={{ opacity: 0, scale: 0.95, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+          className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700"
         >
           {/* Header */}
-          <div className="px-6 py-4 border-b border-primary-200">
+          <div className="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="p-2 bg-accent-100 rounded-lg">
-                  <Edit3 className="h-5 w-5 text-accent-600" />
+                <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                  <Edit3 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-primary-900">Edit API Key</h2>
-                  <p className="text-sm text-primary-600">{selectedKey.name}</p>
+                  <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">Edit API Key</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{selectedKey.name}</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="p-2 hover:bg-primary-100 rounded-lg transition-colors"
+                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
               >
-                <X className="h-5 w-5 text-primary-600" />
+                <X className="h-5 w-5 text-gray-600 dark:text-gray-400" />
               </button>
             </div>
           </div>
@@ -124,7 +124,7 @@ export default function EditApiKeyModal() {
             {/* Basic Info */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-primary-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Name *
                 </label>
                 <input
@@ -132,13 +132,13 @@ export default function EditApiKeyModal() {
                   required
                   value={formData.name}
                   onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                  className="input-field"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="es. Stripe Production"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-primary-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Service *
                 </label>
                 <input
@@ -146,7 +146,7 @@ export default function EditApiKeyModal() {
                   required
                   value={formData.service}
                   onChange={(e) => setFormData(prev => ({ ...prev, service: e.target.value }))}
-                  className="input-field"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="es. Stripe, OpenAI, AWS"
                 />
               </div>
@@ -154,7 +154,7 @@ export default function EditApiKeyModal() {
 
             {/* API Key */}
             <div>
-              <label className="block text-sm font-medium text-primary-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 API Key *
               </label>
               <div className="relative">
@@ -163,18 +163,18 @@ export default function EditApiKeyModal() {
                   required
                   value={formData.key}
                   onChange={(e) => setFormData(prev => ({ ...prev, key: e.target.value }))}
-                  className="input-field pr-12"
-                  placeholder="Insert your API key"
+                  className="w-full px-3 py-2 pr-12 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors font-mono"
+                  placeholder="es. sk-live-1234abcd..."
                 />
                 <button
                   type="button"
                   onClick={() => setKeyVisible(!keyVisible)}
-                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 focus:outline-none"
                 >
                   {keyVisible ? (
-                    <EyeOff className="h-5 w-5 text-primary-400 hover:text-primary-600 transition-colors" />
+                    <EyeOff className="h-5 w-5" />
                   ) : (
-                    <Eye className="h-5 w-5 text-primary-400 hover:text-primary-600 transition-colors" />
+                    <Eye className="h-5 w-5" />
                   )}
                 </button>
               </div>
@@ -182,13 +182,13 @@ export default function EditApiKeyModal() {
 
             {/* Environment */}
             <div>
-              <label className="block text-sm font-medium text-primary-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Environment
               </label>
               <select
                 value={formData.environment}
                 onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value as any }))}
-                className="input-field"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               >
                 <option value="dev">Development</option>
                 <option value="staging">Staging</option>
@@ -198,49 +198,49 @@ export default function EditApiKeyModal() {
 
             {/* Description */}
             <div>
-              <label className="block text-sm font-medium text-primary-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Description
               </label>
               <textarea
                 value={formData.description}
                 onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                className="input-field resize-none"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none"
                 rows={3}
-                placeholder="Optional API key description"
+                placeholder="es. Chiave per ambiente di produzione, accesso limitato ai pagamenti"
               />
             </div>
 
             {/* Rate Limit & Expiry */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-primary-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Rate Limit
                 </label>
                 <input
                   type="text"
                   value={formData.rate_limit}
                   onChange={(e) => setFormData(prev => ({ ...prev, rate_limit: e.target.value }))}
-                  className="input-field"
-                  placeholder="es. 1000 req/min"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                  placeholder="es. 1000 req/min, unlimited"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-primary-700 mb-2">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                   Expiration Date
                 </label>
                 <input
                   type="date"
                   value={formData.expires_at}
                   onChange={(e) => setFormData(prev => ({ ...prev, expires_at: e.target.value }))}
-                  className="input-field"
+                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                 />
               </div>
             </div>
 
             {/* Scopes */}
             <div>
-              <label className="block text-sm font-medium text-primary-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Scopes
               </label>
               <div className="space-y-3">
@@ -250,13 +250,13 @@ export default function EditApiKeyModal() {
                     value={newScope}
                     onChange={(e) => setNewScope(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addScope())}
-                    className="input-field flex-1"
-                    placeholder="Add scope"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="es. read, write, admin, payments"
                   />
                   <button
                     type="button"
                     onClick={addScope}
-                    className="px-4 py-2 bg-accent-600 text-white rounded-lg hover:bg-accent-700 transition-colors"
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
@@ -267,13 +267,13 @@ export default function EditApiKeyModal() {
                     {formData.scopes.map((scope, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1 bg-accent-100 text-accent-700 text-sm rounded-full border border-accent-200 flex items-center space-x-1"
+                        className="inline-flex items-center space-x-1 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-md text-sm"
                       >
                         <span>{scope}</span>
                         <button
                           type="button"
                           onClick={() => removeScope(scope)}
-                          className="text-accent-500 hover:text-accent-700"
+                          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-200 focus:outline-none"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -286,7 +286,7 @@ export default function EditApiKeyModal() {
 
             {/* Tags */}
             <div>
-              <label className="block text-sm font-medium text-primary-700 mb-2">
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Tags
               </label>
               <div className="space-y-3">
@@ -296,13 +296,13 @@ export default function EditApiKeyModal() {
                     value={newTag}
                     onChange={(e) => setNewTag(e.target.value)}
                     onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                    className="input-field flex-1"
-                    placeholder="Add tag"
+                    className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
+                    placeholder="es. production, urgent, billing"
                   />
                   <button
                     type="button"
                     onClick={addTag}
-                    className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+                    className="px-4 py-2 bg-gray-100 dark:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
                   >
                     <Tag className="h-4 w-4" />
                   </button>
@@ -313,13 +313,13 @@ export default function EditApiKeyModal() {
                     {formData.tags.map((tag, index) => (
                       <span
                         key={index}
-                        className="px-3 py-1 bg-primary-100 text-primary-700 text-sm rounded-full border border-primary-200 flex items-center space-x-1"
+                        className="inline-flex items-center space-x-1 px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-md text-sm"
                       >
                         <span>{tag}</span>
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="text-primary-500 hover:text-primary-700"
+                          className="text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 focus:outline-none"
                         >
                           <X className="h-3 w-3" />
                         </button>
@@ -331,10 +331,10 @@ export default function EditApiKeyModal() {
             </div>
 
             {/* Active Toggle */}
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
               <div>
-                <h3 className="font-medium text-primary-900">Active Key</h3>
-                <p className="text-sm text-primary-500">The key is currently usable</p>
+                <h3 className="text-sm font-medium text-gray-900 dark:text-gray-100">Chiave attiva</h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">La chiave è attualmente utilizzabile</p>
               </div>
               <label className="relative inline-flex items-center cursor-pointer">
                 <input
@@ -343,7 +343,7 @@ export default function EditApiKeyModal() {
                   onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.checked }))}
                   className="sr-only peer"
                 />
-                <div className="w-11 h-6 bg-primary-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-accent-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-primary-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-accent-600"></div>
+                <div className={`w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 dark:peer-focus:ring-blue-800 rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-blue-600`}></div>
               </label>
             </div>
 
@@ -352,16 +352,16 @@ export default function EditApiKeyModal() {
               <button
                 type="button"
                 onClick={() => setShowEditModal(false)}
-                className="flex-1 btn-secondary"
+                className="flex-1 py-2 px-4 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
               >
-                Cancel
+                Annulla
               </button>
               <button
                 type="submit"
                 disabled={isLoading || !formData.name || !formData.service || !formData.key}
-                className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 py-2 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {isLoading ? 'Saving...' : 'Save Changes'}
+                {isLoading ? 'Salvataggio...' : 'Salva Modifiche'}
               </button>
             </div>
           </form>
