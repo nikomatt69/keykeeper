@@ -28,7 +28,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 use webauthn_rs::prelude::*;
-use sqlx::sqlite::SqlitePool;
+
 
 // ===============================
 //  API HTTP ↔️ Tauri Command Map
@@ -223,6 +223,27 @@ pub struct VSCodeWorkspace {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PersistentSession {
+    pub session_id: String,
+    pub user_id: String,
+    pub created_at: String,
+    pub expires_at: String,
+    pub last_accessed: String,
+    pub device_info: String,
+    pub is_remember_me: bool,
+    pub is_active: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VSCodeToken {
+    pub token: String,
+    pub user_id: String,
+    pub created_at: String,
+    pub expires_at: String,
+    pub is_valid: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EnvVariable {
     pub name: String,
     pub value: String,
@@ -253,6 +274,8 @@ pub struct ApiKeyVault {
     pub biometric_sessions: Vec<BiometricSession>,
     pub webauthn_challenges: Vec<WebAuthnChallenge>,
     pub vscode_workspaces: Vec<VSCodeWorkspace>,
+    pub persistent_sessions: Vec<PersistentSession>,
+    pub vscode_tokens: Vec<VSCodeToken>,
 }
 
 impl Default for ApiKeyVault {
@@ -272,6 +295,8 @@ impl Default for ApiKeyVault {
             biometric_sessions: Vec::new(),
             webauthn_challenges: Vec::new(),
             vscode_workspaces: Vec::new(),
+            persistent_sessions: Vec::new(),
+            vscode_tokens: Vec::new(),
         }
     }
 }
@@ -346,6 +371,7 @@ async fn is_vault_unlocked(state: State<'_, AppState>) -> Result<bool, String> {
 #[tauri::command]
 async fn lock_vault(state: State<'_, AppState>) -> Result<(), String> {
     *state.is_unlocked.lock().await = false;
+    log_audit_event(&state, "lock_vault", "vault", None, true, None).await;
     Ok(())
 }
 
@@ -465,6 +491,7 @@ async fn start_vscode_server(state: State<'_, AppState>) -> Result<String, Strin
         .map_err(|e| format!("Failed to bind server: {}", e))?;
     let vault = Arc::clone(&state.vault);
     let is_unlocked = Arc::clone(&state.is_unlocked);
+    let vault_path = state.vault_path.clone();
     let running_flag = Arc::clone(&state.vscode_server_running);
     running_flag.store(true, Ordering::SeqCst);
     log_audit_event(&state, "start_vscode_server", "integration", Some("vscode"), true, None).await;
@@ -474,8 +501,9 @@ async fn start_vscode_server(state: State<'_, AppState>) -> Result<String, Strin
                 Ok((stream, addr)) => {
                     let vault_clone = Arc::clone(&vault);
                     let is_unlocked_clone = Arc::clone(&is_unlocked);
+                    let vault_path_clone = vault_path.clone();
                     tokio::spawn(async move {
-                        handle_vscode_connection_enterprise(stream, vault_clone, is_unlocked_clone, addr).await;
+                        handle_vscode_connection_enterprise(stream, vault_clone, is_unlocked_clone, vault_path_clone, addr).await;
                     });
                 },
                 Err(e) => {
@@ -891,13 +919,16 @@ async fn sync_project(
 
 async fn save_vault(state: &State<'_, AppState>) -> Result<(), String> {
     let vault_guard = state.vault.lock().await;
-    
+    save_vault_to_path(&*vault_guard, &state.vault_path).await
+}
+
+async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result<(), String> {
     // Serialize the vault to JSON
-    let json = serde_json::to_string_pretty(&*vault_guard)
+    let json = serde_json::to_string_pretty(vault)
         .map_err(|e| format!("Failed to serialize vault: {}", e))?;
     
     // Encrypt the vault data if encryption key is available
-    let final_data = if let Some(key_str) = &vault_guard.encryption_key {
+    let final_data = if let Some(key_str) = &vault.encryption_key {
         let key_bytes = general_purpose::STANDARD.decode(key_str)
             .map_err(|e| format!("Failed to decode encryption key: {}", e))?;
         
@@ -914,7 +945,7 @@ async fn save_vault(state: &State<'_, AppState>) -> Result<(), String> {
         json
     };
     
-    fs::write(&state.vault_path, final_data)
+    fs::write(vault_path, final_data)
         .map_err(|e| format!("Failed to save vault: {}", e))?;
     
     Ok(())
@@ -1636,6 +1667,176 @@ async fn open_in_vscode(path: String) -> Result<(), String> {
     Ok(())
 }
 
+// Session management for persistent login
+#[tauri::command]
+async fn restore_session_on_startup(state: State<'_, AppState>) -> Result<bool, String> {
+    // Check if user account exists and if vault is already unlocked
+    let vault_guard = state.vault.lock().await;
+    let has_user = vault_guard.user_account.is_some();
+    drop(vault_guard);
+    
+    if has_user {
+        // Check if vault is already unlocked from a previous session
+        let is_unlocked = {
+            let unlocked_guard = state.is_unlocked.lock().await;
+            *unlocked_guard
+        };
+        
+        if is_unlocked {
+            log_audit_event(&state, "restore_session", "session", None, true, Some("Vault already unlocked")).await;
+            info!("Session restored with vault already unlocked");
+        } else {
+            log_audit_event(&state, "restore_session", "session", None, true, Some("User account found, vault locked")).await;
+            info!("Session restored but vault requires unlock");
+        }
+        
+        Ok(true)
+    } else {
+        Ok(false)
+    }
+}
+
+// Window Management Commands
+#[tauri::command]
+async fn show_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.show().map_err(|e| e.to_string())?;
+        window.set_focus().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn hide_window(app: AppHandle) -> Result<(), String> {
+    if let Some(window) = app.get_webview_window("main") {
+        window.hide().map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn quit_application(app: AppHandle) -> Result<(), String> {
+    app.exit(0);
+    Ok(())
+}
+
+// Update Commands  
+#[tauri::command]
+async fn check_for_updates() -> Result<serde_json::Value, String> {
+    // Placeholder for update checking logic
+    Ok(serde_json::json!({
+        "available": false,
+        "version": "0.1.0",
+        "url": null
+    }))
+}
+
+#[tauri::command]
+async fn install_update() -> Result<(), String> {
+    // Placeholder for update installation logic
+    Err("Update installation not implemented".to_string())
+}
+
+// Additional Session Management Commands
+#[tauri::command]
+async fn create_remember_me_session(user_id: String, timeout_minutes: u64, state: State<'_, AppState>) -> Result<String, String> {
+    let session_id = format!("session_{}", Uuid::new_v4());
+    let expires_at = get_future_timestamp(timeout_minutes);
+    
+    let session = PersistentSession {
+        session_id: session_id.clone(),
+        user_id,
+        created_at: get_utc_timestamp(),
+        expires_at,
+        last_accessed: get_utc_timestamp(),
+        device_info: get_device_info(),
+        is_remember_me: true,
+        is_active: true,
+    };
+    
+    let mut vault_guard = state.vault.lock().await;
+    vault_guard.persistent_sessions.push(session);
+    drop(vault_guard);
+    
+    save_vault(&state).await?;
+    log_audit_event(&state, "create_remember_session", "session", Some(&session_id), true, None).await;
+    
+    Ok(session_id)
+}
+
+#[tauri::command]
+async fn validate_remember_me_session(session_id: String, state: State<'_, AppState>) -> Result<bool, String> {
+    let vault_guard = state.vault.lock().await;
+    
+    if let Some(session) = vault_guard.persistent_sessions.iter().find(|s| s.session_id == session_id && s.is_active) {
+        // Check if session is not expired
+        let now = Utc::now();
+        if let Ok(expires_at) = DateTime::parse_from_rfc3339(&session.expires_at) {
+            if now.timestamp() < expires_at.timestamp() {
+                drop(vault_guard);
+                log_audit_event(&state, "validate_remember_session", "session", Some(&session_id), true, None).await;
+                return Ok(true);
+            }
+        }
+    }
+    
+    drop(vault_guard);
+    log_audit_event(&state, "validate_remember_session", "session", Some(&session_id), false, Some("Session invalid or expired")).await;
+    Ok(false)
+}
+
+#[tauri::command]
+async fn get_persistent_sessions(state: State<'_, AppState>) -> Result<Vec<PersistentSession>, String> {
+    let vault_guard = state.vault.lock().await;
+    Ok(vault_guard.persistent_sessions.clone())
+}
+
+#[tauri::command]
+async fn revoke_persistent_session(session_id: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut vault_guard = state.vault.lock().await;
+    
+    if let Some(session) = vault_guard.persistent_sessions.iter_mut().find(|s| s.session_id == session_id) {
+        session.is_active = false;
+    }
+    
+    drop(vault_guard);
+    save_vault(&state).await?;
+    log_audit_event(&state, "revoke_persistent_session", "session", Some(&session_id), true, None).await;
+    
+    Ok(())
+}
+
+#[tauri::command]
+async fn cleanup_all_sessions(state: State<'_, AppState>) -> Result<(), String> {
+    let mut vault_guard = state.vault.lock().await;
+    vault_guard.persistent_sessions.clear();
+    drop(vault_guard);
+    
+    save_vault(&state).await?;
+    log_audit_event(&state, "cleanup_all_sessions", "session", None, true, None).await;
+    
+    Ok(())
+}
+
+// User Management Commands
+#[tauri::command]
+async fn update_username(new_username: String, state: State<'_, AppState>) -> Result<(), String> {
+    let mut vault_guard = state.vault.lock().await;
+    
+    if let Some(user_account) = &mut vault_guard.user_account {
+        user_account.username = new_username.clone();
+        user_account.updated_at = get_utc_timestamp();
+    } else {
+        return Err("No user account found".to_string());
+    }
+    
+    drop(vault_guard);
+    save_vault(&state).await?;
+    log_audit_event(&state, "update_username", "user", Some(&new_username), true, None).await;
+    
+    Ok(())
+}
+
 // Helper functions for biometric authentication
 fn get_device_info() -> String {
     #[cfg(target_os = "macos")]
@@ -1721,10 +1922,28 @@ async fn get_request_body(stream: &mut tokio::net::TcpStream) -> Result<String, 
     Err("No body found".to_string())
 }
 
+// Helper function to validate VSCode tokens
+async fn validate_vscode_token(vault: &Arc<Mutex<ApiKeyVault>>, auth_header: Option<&str>) -> bool {
+    if let Some(auth_value) = auth_header {
+        if let Some(token) = auth_value.strip_prefix("Bearer ") {
+            let vault_guard = vault.lock().await;
+            if let Some(stored_token) = vault_guard.vscode_tokens.iter().find(|t| t.token == token && t.is_valid) {
+                // Check if token is not expired
+                let now = Utc::now();
+                if let Ok(expires_at) = DateTime::parse_from_rfc3339(&stored_token.expires_at) {
+                    return now.timestamp() < expires_at.timestamp();
+                }
+            }
+        }
+    }
+    false
+}
+
 async fn handle_vscode_connection_enterprise(
     mut stream: tokio::net::TcpStream,
     vault: Arc<Mutex<ApiKeyVault>>,
     is_unlocked: Arc<Mutex<bool>>,
+    vault_path: PathBuf,
     client_addr: std::net::SocketAddr
 ) {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -1931,6 +2150,152 @@ async fn handle_vscode_connection_enterprise(
                         security_headers
                     );
                     let _ = stream.write_all(response.as_bytes()).await;
+                } else {
+                    let response = format!(
+                        "HTTP/1.1 403 Forbidden\r\n{}\r\n{{\"error\":\"Vault is locked\"}}",
+                        security_headers
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            },
+            ("POST", "/api/login") => {
+                // Parse request body to get credentials
+                if let Ok(body) = get_request_body(&mut stream).await {
+                    if let Ok(parsed_body) = serde_json::from_str::<serde_json::Value>(&body) {
+                        if let (Some(account), Some(master_pass)) = (
+                            parsed_body["account"].as_str(),
+                            parsed_body["masterPass"].as_str()
+                        ) {
+                            // Check if user account exists and password matches master password
+                            let vault_guard = vault.lock().await;
+                            if let Some(user_account) = &vault_guard.user_account {
+                                if user_account.email == account || user_account.username == account {
+                                    // For VSCode integration, we check against master password, not user password
+                                    if let Some(master_hash) = &vault_guard.master_password_hash {
+                                        let master_hash_clone = master_hash.clone();
+                                        let user_id_clone = user_account.id.clone();
+                                        drop(vault_guard);
+                                        if let Ok(is_valid) = bcrypt::verify(master_pass, &master_hash_clone) {
+                                            if is_valid {
+                                                // ✅ FIX: Create secure token with expiry
+                                                let token = format!("vscode_session_{}", uuid::Uuid::new_v4().to_string());
+                                                let now = get_utc_timestamp();
+                                                let expires_at = get_future_timestamp(480); // 8 hours
+                                                
+                                                let vscode_token = VSCodeToken {
+                                                    token: token.clone(),
+                                                    user_id: user_id_clone,
+                                                    created_at: now,
+                                                    expires_at,
+                                                    is_valid: true,
+                                                };
+                                                
+                                                // Store token in vault
+                                                let mut vault_guard_for_token = vault.lock().await;
+                                                vault_guard_for_token.vscode_tokens.push(vscode_token);
+                                                drop(vault_guard_for_token);
+                                                
+                                                let response = format!(
+                                                    "HTTP/1.1 200 OK\r\n{}\r\n{{\"success\":true,\"token\":\"{}\"}}",
+                                                    security_headers,
+                                                    token
+                                                );
+                                                let _ = stream.write_all(response.as_bytes()).await;
+                                                return;
+                                            }
+                                        }
+                                    } else {
+                                        drop(vault_guard);
+                                    }
+                                } else {
+                                    drop(vault_guard);
+                                }
+                            } else {
+                                drop(vault_guard);
+                            }
+                            let response = format!(
+                                "HTTP/1.1 401 Unauthorized\r\n{}\r\n{{\"success\":false,\"message\":\"Invalid credentials\"}}",
+                                security_headers
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        } else {
+                            let response = format!(
+                                "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"success\":false,\"message\":\"Missing account or masterPass\"}}",
+                                security_headers
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        }
+                    } else {
+                        let response = format!(
+                            "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"success\":false,\"message\":\"Invalid JSON body\"}}",
+                            security_headers
+                        );
+                        let _ = stream.write_all(response.as_bytes()).await;
+                    }
+                } else {
+                    let response = format!(
+                        "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"success\":false,\"message\":\"Cannot read request body\"}}",
+                        security_headers
+                    );
+                    let _ = stream.write_all(response.as_bytes()).await;
+                }
+            },
+            ("POST", "/api/keys") => {
+                if *is_unlocked.lock().await {
+                    // Parse request body to create new API key
+                    if let Ok(body) = get_request_body(&mut stream).await {
+                        if let Ok(mut parsed_body) = serde_json::from_str::<serde_json::Value>(&body) {
+                            // Generate ID and timestamps for new key
+                            let now = get_utc_timestamp();
+                            parsed_body["id"] = serde_json::Value::String(format!("key_{}", get_utc_timestamp_millis()));
+                            parsed_body["created_at"] = serde_json::Value::String(now.clone());
+                            parsed_body["updated_at"] = serde_json::Value::String(now);
+                            
+                            if let Ok(api_key) = serde_json::from_value::<ApiKey>(parsed_body) {
+                                let mut vault_guard = vault.lock().await;
+                                vault_guard.keys.insert(api_key.id.clone(), api_key.clone());
+                                
+                                // ✅ FIXED: Save vault to persist keys created via HTTP API
+                                if let Err(e) = save_vault_to_path(&*vault_guard, &vault_path).await {
+                                    drop(vault_guard);
+                                    let response = format!(
+                                        "HTTP/1.1 500 Internal Server Error\r\n{}\r\n{{\"error\":\"Failed to save key: {}\"}}",
+                                        security_headers,
+                                        e
+                                    );
+                                    let _ = stream.write_all(response.as_bytes()).await;
+                                    return;
+                                }
+                                drop(vault_guard);
+                                
+                                let json_response = serde_json::to_string(&api_key).unwrap_or_default();
+                                let response = format!(
+                                    "HTTP/1.1 201 Created\r\n{}\r\n{}",
+                                    security_headers,
+                                    json_response
+                                );
+                                let _ = stream.write_all(response.as_bytes()).await;
+                            } else {
+                                let response = format!(
+                                    "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Invalid API key data\"}}",
+                                    security_headers
+                                );
+                                let _ = stream.write_all(response.as_bytes()).await;
+                            }
+                        } else {
+                            let response = format!(
+                                "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Invalid JSON body\"}}",
+                                security_headers
+                            );
+                            let _ = stream.write_all(response.as_bytes()).await;
+                        }
+                    } else {
+                        let response = format!(
+                            "HTTP/1.1 400 Bad Request\r\n{}\r\n{{\"error\":\"Cannot read request body\"}}",
+                            security_headers
+                        );
+                        let _ = stream.write_all(response.as_bytes()).await;
+                    }
                 } else {
                     let response = format!(
                         "HTTP/1.1 403 Forbidden\r\n{}\r\n{{\"error\":\"Vault is locked\"}}",
@@ -2277,6 +2642,12 @@ pub fn run() {
                             // Qui puoi invocare una command per bloccare/sbloccare il vault
                         },
                         "quit" => {
+                            // Lock vault before quitting
+                            if let Some(state) = app.try_state::<AppState>() {
+                                if let Ok(mut unlocked) = state.is_unlocked.try_lock() {
+                                    *unlocked = false;
+                                }
+                            }
                             std::process::exit(0);
                         },
                         _ => {}
@@ -2287,9 +2658,23 @@ pub fn run() {
 
             Ok(())
         })
+        .on_window_event(|window, event| {
+            match event {
+                tauri::WindowEvent::CloseRequested { .. } => {
+                    // Lock vault when window is closed
+                    if let Some(state) = window.app_handle().try_state::<AppState>() {
+                        if let Ok(mut unlocked) = state.is_unlocked.try_lock() {
+                            *unlocked = false;
+                        }
+                    }
+                }
+                _ => {}
+            }
+        })
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_persisted_scope::init())
         .invoke_handler(tauri::generate_handler![
             unlock_vault,
             set_master_password,
@@ -2334,7 +2719,19 @@ pub fn run() {
             get_project_vscode_status,
             open_folder,
             open_file,
-            open_in_vscode
+            open_in_vscode,
+            restore_session_on_startup,
+            show_window,
+            hide_window,
+            quit_application,
+            check_for_updates,
+            install_update,
+            create_remember_me_session,
+            validate_remember_me_session,
+            get_persistent_sessions,
+            revoke_persistent_session,
+            cleanup_all_sessions,
+            update_username
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

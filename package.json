@@ -1,7 +1,7 @@
 {
   "name": "keykeeper",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.2.3",
   "scripts": {
     "build": "next build",
     "dev": "next dev",

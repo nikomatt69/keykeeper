@@ -34,8 +34,16 @@ export default function SetMasterPasswordScreen() {
       const success = await TauriAPI.setMasterPassword(password)
       if (success) {
         setSuccessMessage('Master password set successfully! Vault unlocked.')
+        // ✅ IMPROVED: Update states in correct order and wait for completion
         setHasMasterPassword(true)
         setIsUnlocked(true)
+        
+        // ✅ IMPROVED: Clear form and wait for auth status refresh
+        setPassword('')
+        setConfirmPassword('')
+        
+        // Give time for the event to be processed and UI to update
+        await new Promise(resolve => setTimeout(resolve, 150))
       } else {
         setError('Failed to set master password. Please try again.')
       }

@@ -54,21 +54,21 @@ export default function Home() {
 
   if (currentAuthStep === 'loading') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50 flex items-center justify-center">
+      <div className="flex justify-center items-center min-h-screen bg-gradient-to-br via-white from-primary-50 to-accent-50">
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
           className="text-center"
         >
-          <div className="w-16 h-16 border-4 border-accent-200 border-t-accent-600 rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-primary-600 text-lg font-medium">Starting KeyKeeper...</p>
+          <div className="mx-auto mb-4 w-16 h-16 rounded-full border-4 animate-spin border-accent-200 border-t-accent-600"></div>
+          <p className="text-lg font-medium text-primary-600">Starting KeyKeeper...</p>
         </motion.div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-accent-50">
+    <div className="min-h-screen bg-gradient-to-br via-white from-primary-50 to-accent-50">
       <AnimatePresence mode="wait">
         {currentAuthStep === 'registerOrLogin' && (
           <motion.div

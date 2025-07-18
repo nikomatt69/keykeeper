@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { listen } from '@tauri-apps/api/event';
 
 export interface ApiKey {
     id: string;
@@ -85,6 +86,15 @@ export class TauriAPI {
 
     static async isMasterPasswordSet(): Promise<boolean> {
         return await invoke('is_master_password_set');
+    }
+
+    // ✅ User Authentication Commands (missing from original API)
+    static async authenticateUser(email: string, password: string): Promise<boolean> {
+        return await invoke('authenticate_user', { email, password });
+    }
+
+    static async createUserAccount(email: string, password: string): Promise<string> {
+        return await invoke('create_user_account', { email, password });
     }
 
     // API Key Management
@@ -308,6 +318,31 @@ export class TauriAPI {
     }
     static async getUserAccount(): Promise<any> {
         return await invoke('get_user_account');
+    }
+
+    // ✅ Event Listeners for real-time communication
+    static async onVaultStateChanged(callback: (isUnlocked: boolean) => void) {
+        return await listen('vault-state-changed', (event) => {
+            callback(event.payload as boolean);
+        });
+    }
+
+    static async onAuthStateChanged(callback: (state: any) => void) {
+        return await listen('auth-state-changed', (event) => {
+            callback(event.payload);
+        });
+    }
+
+    static async onApiKeysChanged(callback: (keys: ApiKey[]) => void) {
+        return await listen('api-keys-changed', (event) => {
+            callback(event.payload as ApiKey[]);
+        });
+    }
+
+    static async onUserAccountChanged(callback: (account: any) => void) {
+        return await listen('user-account-changed', (event) => {
+            callback(event.payload);
+        });
     }
 }
 

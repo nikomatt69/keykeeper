@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Key, Shield, Eye, EyeOff, Sparkles, Lock, Mail, User, ArrowLeft } from 'lucide-react'
 import { useAppStore } from '../lib/store'
@@ -10,7 +10,7 @@ type LoginScreenProps = {
 
 
 
-export default function LoginScreen({ }: LoginScreenProps) {
+export default function LoginScreen({ mode: initialMode }: LoginScreenProps) {
   const [password, setPassword] = useState('')
   const [email, setEmail] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -18,56 +18,78 @@ export default function LoginScreen({ }: LoginScreenProps) {
   const [recoveryToken, setRecoveryToken] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [successMessage, setSuccessMessage] = useState('')
-  const { unlockVault, loginUser, registerUser, error, setIsUserLoggedIn, setHasMasterPassword } = useAppStore()
-  const [mode, setMode] = useState<LoginScreenProps['mode']>('registerOrLogin')
+  const { unlockVault, loginUser, registerUser, error, setError, setIsUserLoggedIn, setHasMasterPassword } = useAppStore()
+  const [mode, setMode] = useState<LoginScreenProps['mode']>(initialMode)
+
+  // ✅ Sync internal mode with prop changes to prevent conflicts
+  useEffect(() => {
+    setMode(initialMode)
+    // Clear previous state when mode changes
+    setSuccessMessage('')
+    setError(null)
+  }, [initialMode, setError])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
     setSuccessMessage('')
+    setError(null)
 
     try {
+      let success = false
+
       if (mode === 'unlockVault') {
         if (password.trim()) {
-          const success = await unlockVault(password)
+          success = await unlockVault(password)
           if (success) {
             setSuccessMessage('Vault unlocked successfully!')
-          } else {
-            // Error message is already set by useAppStore
           }
         }
       } else if (mode === 'registerOrLogin') {
         if (email.trim() && password.trim()) {
-          const success = await registerUser(email, password)
+          success = await registerUser(email, password)
           if (success) {
-            setSuccessMessage('Account created successfully! Please log in.')
-            // After registration, the flow will move to userLogin
-          } else {
-            // Error message is already set by useAppStore
+            setSuccessMessage('Account created successfully!')
           }
         }
       } else if (mode === 'userLogin') {
         if (email.trim() && password.trim()) {
-          const success = await loginUser(email, password)
+          success = await loginUser(email, password)
           if (success) {
             setSuccessMessage('Logged in successfully!')
-            // The index.tsx will handle the next step (set master password or unlock vault)
-          } else {
-            // Error message is already set by useAppStore
+            // ✅ IMPROVED: Wait for auth status refresh to complete
+            await new Promise(resolve => {
+
+              setTimeout(resolve, 100)
+            })
           }
         }
       } else if (mode === 'recovery') {
         if (recoveryToken.trim() && newPassword.trim()) {
-          // This part still uses direct invoke, as it's a specific backend command
           await invoke('reset_master_password', { token: recoveryToken, newPassword })
           setSuccessMessage('Master password reset successfully!')
           setRecoveryToken('')
           setNewPassword('')
+          success = true
+          // ✅ IMPROVED: Trigger auth refresh after recovery
+          await new Promise(resolve => {
+
+            setTimeout(resolve, 100)
+          })
         }
+      }
+
+      // ✅ Clear form only on success for non-vault modes
+      if (success && mode !== 'unlockVault') {
+        setPassword('')
+        setEmail('')
       }
     } catch (err) {
       console.error('Authentication error:', err)
-      // Error message is already set by useAppStore or handled by specific invoke calls
+      // Error is handled by useAppStore for most cases
+      if (mode === 'recovery') {
+        setError(`Recovery failed: ${err}`)
+      }
     } finally {
       setIsLoading(false)
     }
@@ -117,7 +139,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center p-6 relative overflow-hidden"
+      className="flex overflow-hidden relative justify-center items-center p-6 min-h-screen"
       style={{
         background: 'linear-gradient(135deg, var(--color-background) 0%, var(--color-background-secondary) 50%, var(--color-background) 100%)'
       }}
@@ -141,7 +163,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
           }}
         />
         <motion.div
-          className="absolute bottom-20 right-20 w-96 h-96 rounded-full"
+          className="absolute right-20 bottom-20 w-96 h-96 rounded-full"
           style={{
             background: 'radial-gradient(circle, rgba(147, 51, 234, 0.2) 0%, transparent 70%)',
             filter: 'blur(60px)'
@@ -162,10 +184,10 @@ export default function LoginScreen({ }: LoginScreenProps) {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="w-full max-w-md space-y-8"
+        className="space-y-8 w-full max-w-md"
       >
         {/* Logo and Title */}
-        <div className="text-center space-y-6">
+        <div className="space-y-6 text-center">
           <motion.div
             initial={{ scale: 0, rotate: -180 }}
             animate={{ scale: 1, rotate: 0 }}
@@ -176,10 +198,10 @@ export default function LoginScreen({ }: LoginScreenProps) {
               stiffness: 200,
               damping: 20
             }}
-            className="relative mx-auto w-20 h-20 mb-8"
+            className="relative mx-auto mb-8 w-20 h-20"
           >
             <div
-              className="glass-card w-full h-full flex items-center justify-center relative overflow-hidden"
+              className="flex overflow-hidden relative justify-center items-center w-full h-full glass-card"
               style={{
                 borderRadius: 'var(--radius-xl)',
 
@@ -221,13 +243,13 @@ export default function LoginScreen({ }: LoginScreenProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.6 }}
-          className="modal-native p-8 space-y-6"
+          className="p-8 space-y-6 modal-native"
         >
-          <div className="flex items-center space-x-3 mb-6 text-contrast-medium">
-            {mode === 'unlockVault' && <Shield className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />}
-            {(mode === 'registerOrLogin' || mode === 'userLogin') && <User className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />}
-            {mode === 'recovery' && <Mail className="h-5 w-5" style={{ color: 'var(--color-accent)' }} />}
-            <span className="text-body font-medium">
+          <div className="flex items-center mb-6 space-x-3 text-contrast-medium">
+            {mode === 'unlockVault' && <Shield className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />}
+            {(mode === 'registerOrLogin' || mode === 'userLogin') && <User className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />}
+            {mode === 'recovery' && <Mail className="w-5 h-5" style={{ color: 'var(--color-accent)' }} />}
+            <span className="font-medium text-body">
               {getTitle()}
             </span>
           </div>
@@ -237,7 +259,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
               <div className="space-y-2">
                 <label
                   htmlFor="email"
-                  className="text-body font-medium text-contrast-medium"
+                  className="font-medium text-body text-contrast-medium"
                 >
                   Email
                 </label>
@@ -261,7 +283,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
               <div className="space-y-2">
                 <label
                   htmlFor="recoveryToken"
-                  className="text-body font-medium text-contrast-medium"
+                  className="font-medium text-body text-contrast-medium"
                 >
                   Recovery Token
                 </label>
@@ -285,7 +307,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
               <div className="space-y-2">
                 <label
                   htmlFor="password"
-                  className="text-body font-medium text-contrast-medium"
+                  className="font-medium text-body text-contrast-medium"
                 >
                   {isNewPasswordMode ? 'New Master Password' : 'Password'}
                 </label>
@@ -297,7 +319,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                     required
                     value={isNewPasswordMode ? newPassword : password}
                     onChange={(e: React.ChangeEvent<HTMLInputElement>) => isNewPasswordMode ? setNewPassword(e.target.value) : setPassword(e.target.value)}
-                    className="input-native pr-12 focus-native text-contrast-high"
+                    className="pr-12 input-native focus-native text-contrast-high"
                     placeholder={isNewPasswordMode ? 'Enter new master password' : 'Enter your password'}
                     disabled={isLoading}
                     whileFocus={{ scale: 1.02 }}
@@ -306,7 +328,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                   <motion.button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3 flex items-center focus-native"
+                    className="flex absolute inset-y-0 right-0 items-center pr-3 focus-native"
                     style={{
                       color: 'rgba(255, 255, 255, 0.5)',
                       background: 'none',
@@ -320,9 +342,9 @@ export default function LoginScreen({ }: LoginScreenProps) {
                     tabIndex={-1}
                   >
                     {showPassword ? (
-                      <EyeOff className="h-5 w-5" />
+                      <EyeOff className="w-5 h-5" />
                     ) : (
-                      <Eye className="h-5 w-5" />
+                      <Eye className="w-5 h-5" />
                     )}
                   </motion.button>
                 </div>
@@ -336,15 +358,15 @@ export default function LoginScreen({ }: LoginScreenProps) {
                   animate={{ opacity: 1, x: 0, height: "auto" }}
                   exit={{ opacity: 0, x: -10, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="glass-card p-4"
+                  className="p-4 glass-card"
                   style={{
                     background: 'rgba(255, 59, 48, 0.1)',
                     border: '1px solid rgba(255, 59, 48, 0.2)',
                     borderRadius: 'var(--radius-lg)'
                   }}
                 >
-                  <p className="text-body flex items-center gap-2" style={{ color: '#ff453a' }}>
-                    <Lock className="h-4 w-4" />
+                  <p className="flex gap-2 items-center text-body" style={{ color: '#ff453a' }}>
+                    <Lock className="w-4 h-4" />
                     {error}
                   </p>
                 </motion.div>
@@ -355,15 +377,15 @@ export default function LoginScreen({ }: LoginScreenProps) {
                   animate={{ opacity: 1, x: 0, height: "auto" }}
                   exit={{ opacity: 0, x: -10, height: 0 }}
                   transition={{ duration: 0.3 }}
-                  className="glass-card p-4"
+                  className="p-4 glass-card"
                   style={{
                     background: 'rgba(52, 199, 89, 0.1)',
                     border: '1px solid rgba(52, 199, 89, 0.2)',
                     borderRadius: 'var(--radius-lg)'
                   }}
                 >
-                  <p className="text-body flex items-center gap-2" style={{ color: '#30d158' }}>
-                    <Shield className="h-4 w-4" />
+                  <p className="flex gap-2 items-center text-body" style={{ color: '#30d158' }}>
+                    <Shield className="w-4 h-4" />
                     {successMessage}
                   </p>
                 </motion.div>
@@ -374,7 +396,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
               <motion.button
                 type="submit"
                 disabled={isLoading || (showEmailField && !email.trim()) || (showPasswordField && !password.trim() && !newPassword.trim()) || (showRecoveryTokenField && !recoveryToken.trim())}
-                className="btn-primary w-full py-3 text-base font-semibold hover-lift focus-native relative overflow-hidden"
+                className="overflow-hidden relative py-3 w-full text-base font-semibold btn-primary hover-lift focus-native"
                 style={{
                   borderRadius: 'var(--radius-lg)',
                   opacity: (isLoading || (showEmailField && !email.trim()) || (showPasswordField && !password.trim() && !newPassword.trim()) || (showRecoveryTokenField && !recoveryToken.trim())) ? '0.5' : '1',
@@ -389,7 +411,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex items-center justify-center space-x-2"
+                      className="flex justify-center items-center space-x-2"
                     >
                       <div className="spinner-native" style={{ borderTopColor: 'white', borderColor: 'rgba(255, 255, 255, 0.3)' }} />
                       <span>{getButtonText()}</span>
@@ -399,9 +421,9 @@ export default function LoginScreen({ }: LoginScreenProps) {
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
-                      className="flex items-center justify-center space-x-2"
+                      className="flex justify-center items-center space-x-2"
                     >
-                      <Sparkles className="h-5 w-5" />
+                      <Sparkles className="w-5 h-5" />
                       <span>{getButtonText()}</span>
                     </motion.div>
                   )}
@@ -423,7 +445,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                     }
                   }}
                   disabled={isLoading || !email.trim()}
-                  className="btn-secondary w-full py-2 text-sm font-medium hover-lift focus-native"
+                  className="py-2 w-full text-sm font-medium btn-secondary hover-lift focus-native"
                   style={{
                     borderRadius: 'var(--radius-lg)',
                     opacity: (isLoading || !email.trim()) ? '0.5' : '1',
@@ -432,8 +454,8 @@ export default function LoginScreen({ }: LoginScreenProps) {
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                 >
-                  <div className="flex items-center justify-center space-x-2">
-                    <Mail className="h-4 w-4" />
+                  <div className="flex justify-center items-center space-x-2">
+                    <Mail className="w-4 h-4" />
                     <span>Request Recovery Token</span>
                   </div>
                 </motion.button>
@@ -441,13 +463,13 @@ export default function LoginScreen({ }: LoginScreenProps) {
             </div>
           </form>
 
-          <div className="text-center pt-4 space-y-3">
+          <div className="pt-4 space-y-3 text-center">
             {mode === 'registerOrLogin' && (
               <div className="flex justify-center space-x-6">
                 <motion.button
                   type="button"
                   onClick={() => setMode('userLogin')}
-                  className="text-sm text-contrast-medium hover:text-contrast-high transition-colors"
+                  className="text-sm transition-colors text-contrast-medium hover:text-contrast-high"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -461,7 +483,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                 <motion.button
                   type="button"
                   onClick={() => setMode('registerOrLogin')}
-                  className="text-sm text-contrast-medium hover:text-contrast-high transition-colors"
+                  className="text-sm transition-colors text-contrast-medium hover:text-contrast-high"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -470,7 +492,7 @@ export default function LoginScreen({ }: LoginScreenProps) {
                 <motion.button
                   type="button"
                   onClick={() => setMode('recovery')}
-                  className="text-sm text-contrast-medium hover:text-contrast-high transition-colors"
+                  className="text-sm transition-colors text-contrast-medium hover:text-contrast-high"
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
                 >
@@ -483,11 +505,11 @@ export default function LoginScreen({ }: LoginScreenProps) {
               <motion.button
                 type="button"
                 onClick={() => setMode('userLogin')}
-                className="flex items-center justify-center space-x-2 mx-auto text-sm text-contrast-medium hover:text-contrast-high transition-colors"
+                className="flex justify-center items-center mx-auto space-x-2 text-sm transition-colors text-contrast-medium hover:text-contrast-high"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                <ArrowLeft className="h-4 w-4" />
+                <ArrowLeft className="w-4 h-4" />
                 <span>Back to Login</span>
               </motion.button>
             )}
@@ -512,18 +534,18 @@ export default function LoginScreen({ }: LoginScreenProps) {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.8 }}
-          className="text-center space-y-4"
+          className="space-y-4 text-center"
         >
           <div
-            className="flex items-center justify-center space-x-2"
+            className="flex justify-center items-center space-x-2"
             style={{ color: 'rgba(255, 255, 255, 0.6)' }}
           >
-            <Shield className="h-4 w-4" />
+            <Shield className="w-4 h-4" />
             <span className="text-body">End-to-end encryption</span>
           </div>
 
           <p
-            className="text-caption max-w-sm mx-auto leading-relaxed"
+            className="mx-auto max-w-sm leading-relaxed text-caption"
             style={{ color: 'rgba(255, 255, 255, 0.4)' }}
           >
             Your API keys are encrypted locally and never leave your device.

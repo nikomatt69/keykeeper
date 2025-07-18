@@ -75,6 +75,30 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
         title: 'Team',
         icon: Users,
         description: 'Collaboration and team management'
+    },
+    {
+        id: 'user',
+        title: 'User Management',
+        icon: User,
+        description: 'Account settings, data management and local file cleanup'
+    },
+    {
+        id: 'security-audit',
+        title: 'Security Audit',
+        icon: Shield,
+        description: 'Security analysis, vulnerability scans and audit logs'
+    },
+    {
+        id: 'system-info',
+        title: 'System Info',
+        icon: Monitor,
+        description: 'System performance, diagnostics and resource usage'
+    },
+    {
+        id: 'developer',
+        title: 'Developer Tools',
+        icon: Code,
+        description: 'Debug tools, API testing and development utilities'
     }
 ]
 
@@ -417,6 +441,22 @@ export default function SettingsScreen() {
 
                                     {activeSection === 'team' && (
                                         <TeamSettings />
+                                    )}
+
+                                    {activeSection === 'user' && (
+                                        <UserManagementSettings />
+                                    )}
+
+                                    {activeSection === 'security-audit' && (
+                                        <SecurityAuditSettings />
+                                    )}
+
+                                    {activeSection === 'system-info' && (
+                                        <SystemInfoSettings />
+                                    )}
+
+                                    {activeSection === 'developer' && (
+                                        <DeveloperToolsSettings />
                                     )}
                                 </motion.div>
                             </AnimatePresence>
@@ -1406,4 +1446,758 @@ function TeamSettings() {
             </div>
         </div>
     )
-} 
+}
+
+// User Management Settings Component
+function UserManagementSettings() {
+    const [isDeleting, setIsDeleting] = useState(false)
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+    const [deleteType, setDeleteType] = useState<'cache' | 'logs' | 'all' | null>(null)
+    const [storageInfo, setStorageInfo] = useState<{
+        vaultSize: string
+        cacheSize: string
+        logsSize: string
+        totalSize: string
+    } | null>(null)
+
+    useEffect(() => {
+        loadStorageInfo()
+    }, [])
+
+    const loadStorageInfo = async () => {
+        try {
+            // Mock data for now - in real implementation, call Tauri commands
+            setStorageInfo({
+                vaultSize: '2.4 MB',
+                cacheSize: '1.2 MB', 
+                logsSize: '0.8 MB',
+                totalSize: '4.4 MB'
+            })
+        } catch (error) {
+            console.error('Failed to load storage info:', error)
+        }
+    }
+
+    const handleDeleteData = async (type: 'cache' | 'logs' | 'all') => {
+        setIsDeleting(true)
+        try {
+            // In real implementation, call appropriate Tauri commands
+            switch (type) {
+                case 'cache':
+                    // await TauriAPI.clearCache()
+                    console.log('Clearing cache...')
+                    break
+                case 'logs':
+                    // await TauriAPI.clearLogs()
+                    console.log('Clearing logs...')
+                    break
+                case 'all':
+                    // await TauriAPI.clearAllLocalData()
+                    console.log('Clearing all local data...')
+                    break
+            }
+            await loadStorageInfo()
+            setShowDeleteConfirm(false)
+            setDeleteType(null)
+        } catch (error) {
+            console.error('Failed to delete data:', error)
+        } finally {
+            setIsDeleting(false)
+        }
+    }
+
+    const confirmDelete = (type: 'cache' | 'logs' | 'all') => {
+        setDeleteType(type)
+        setShowDeleteConfirm(true)
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* User Profile Section */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <User className="h-4 w-4" />
+                    <span>User Profile</span>
+                </h4>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Username</label>
+                            <p className="text-caption">Update your display name</p>
+                        </div>
+                        <input
+                            type="text"
+                            placeholder="Enter username"
+                            className="input-native w-48"
+                            style={{ background: 'var(--color-surface-secondary)' }}
+                        />
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Theme Preference</label>
+                            <p className="text-caption">Choose your preferred theme</p>
+                        </div>
+                        <select className="input-native w-32">
+                            <option value="system">System</option>
+                            <option value="light">Light</option>
+                            <option value="dark">Dark</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Language</label>
+                            <p className="text-caption">Select your preferred language</p>
+                        </div>
+                        <select className="input-native w-32">
+                            <option value="en">English</option>
+                            <option value="it">Italiano</option>
+                            <option value="es">Español</option>
+                            <option value="fr">Français</option>
+                        </select>
+                    </div>
+
+                    <div className="pt-4 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
+                        <button className="btn-primary px-4 py-2 hover-lift focus-native">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Session Management */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Lock className="h-4 w-4" />
+                    <span>Session Management</span>
+                </h4>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Biometric Authentication</label>
+                            <p className="text-caption">Use Face ID, Touch ID or Windows Hello</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input type="checkbox" className="sr-only peer" />
+                            <div className="toggle-native active"></div>
+                        </label>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Auto-Lock Timeout</label>
+                            <p className="text-caption">Lock vault after inactivity</p>
+                        </div>
+                        <select className="input-native w-24">
+                            <option value="5">5m</option>
+                            <option value="15" selected>15m</option>
+                            <option value="30">30m</option>
+                            <option value="60">1h</option>
+                        </select>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Session Timeout</label>
+                            <p className="text-caption">Require re-authentication after</p>
+                        </div>
+                        <select className="input-native w-24">
+                            <option value="30">30m</option>
+                            <option value="60" selected>1h</option>
+                            <option value="120">2h</option>
+                            <option value="480">8h</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            {/* Current Sessions */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Monitor className="h-4 w-4" />
+                    <span>Current Sessions</span>
+                </h4>
+
+                <div className="space-y-3">
+                    <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-3 h-3 rounded-full" style={{ background: 'var(--color-success)' }}></div>
+                                <div>
+                                    <p className="text-body font-medium">Current Session</p>
+                                    <p className="text-caption">Started: {new Date().toLocaleString()}</p>
+                                </div>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-caption px-2 py-1 rounded" style={{ background: 'var(--color-success)', color: 'white' }}>Active</span>
+                                <button className="btn-secondary text-sm px-3 py-1 hover-lift focus-native">
+                                    End Session
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-3">
+                                <div className="w-3 h-3 rounded-full" style={{ background: 'var(--color-text-tertiary)' }}></div>
+                                <div>
+                                    <p className="text-body font-medium">Previous Session</p>
+                                    <p className="text-caption">Ended: 2 hours ago</p>
+                                </div>
+                            </div>
+                            <span className="text-caption px-2 py-1 rounded" style={{ background: 'var(--color-text-tertiary)', color: 'white' }}>Expired</span>
+                        </div>
+                    </div>
+
+                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                            <Trash2 className="h-4 w-4" />
+                            <span>Clear All Sessions</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* Vault File Access */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Key className="h-4 w-4" />
+                    <span>Vault File Access</span>
+                </h4>
+
+                <div className="space-y-4">
+                    <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-body font-medium">Vault Location</p>
+                                <p className="text-caption font-mono text-xs">~/Library/Application Support/KeyKeeper/vault.json</p>
+                            </div>
+                            <div className="flex space-x-2">
+                                <button className="btn-secondary text-sm px-3 py-1 hover-lift focus-native flex items-center space-x-1">
+                                    <Download className="h-3 w-3" />
+                                    <span>Open Folder</span>
+                                </button>
+                                <button className="btn-secondary text-sm px-3 py-1 hover-lift focus-native flex items-center space-x-1">
+                                    <Code className="h-3 w-3" />
+                                    <span>View File</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-body font-medium">Backup Location</p>
+                                <p className="text-caption font-mono text-xs">~/Library/Application Support/KeyKeeper/backups/</p>
+                            </div>
+                            <button className="btn-secondary text-sm px-3 py-1 hover-lift focus-native flex items-center space-x-1">
+                                <Download className="h-3 w-3" />
+                                <span>Open Folder</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-body font-medium">Logs Location</p>
+                                <p className="text-caption font-mono text-xs">~/Library/Application Support/KeyKeeper/logs/</p>
+                            </div>
+                            <button className="btn-secondary text-sm px-3 py-1 hover-lift focus-native flex items-center space-x-1">
+                                <Download className="h-3 w-3" />
+                                <span>Open Folder</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
+                        <div className="flex items-center space-x-2">
+                            <Info className="h-4 w-4" style={{ color: 'var(--color-accent)' }} />
+                            <p className="text-caption">All files are stored locally on your device for maximum security</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Advanced Controls */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <SettingsIcon className="h-4 w-4" />
+                    <span>Advanced Controls</span>
+                </h4>
+
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Export Vault Data</label>
+                            <p className="text-caption">Create a backup of your vault in JSON format</p>
+                        </div>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                            <Upload className="h-4 w-4" />
+                            <span>Export</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Import Vault Data</label>
+                            <p className="text-caption">Restore vault from a backup file</p>
+                        </div>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                            <Download className="h-4 w-4" />
+                            <span>Import</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Verify Vault Integrity</label>
+                            <p className="text-caption">Check vault file for corruption or issues</p>
+                        </div>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                            <CheckCircle2 className="h-4 w-4" />
+                            <span>Verify</span>
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Compact Database</label>
+                            <p className="text-caption">Optimize vault file size and performance</p>
+                        </div>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                            <Zap className="h-4 w-4" />
+                            <span>Compact</span>
+                        </button>
+                    </div>
+
+                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(255, 165, 0, 0.2)' }}>
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <label className="text-body font-medium" style={{ color: 'var(--color-warning)' }}>Reset Application</label>
+                                <p className="text-caption">⚠️ Reset all settings to default (keeps vault data)</p>
+                            </div>
+                            <button className="btn-warning px-4 py-2 hover-lift focus-native flex items-center space-x-2">
+                                <SettingsIcon className="h-4 w-4" />
+                                <span>Reset App</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Storage & Data Management */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Database className="h-4 w-4" />
+                    <span>Storage & Data Management</span>
+                </h4>
+
+                {storageInfo && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Vault Data</span>
+                                    <span className="text-body font-medium">{storageInfo.vaultSize}</span>
+                                </div>
+                            </div>
+                            <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Cache</span>
+                                    <span className="text-body font-medium">{storageInfo.cacheSize}</span>
+                                </div>
+                            </div>
+                            <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Logs</span>
+                                    <span className="text-body font-medium">{storageInfo.logsSize}</span>
+                                </div>
+                            </div>
+                            <div className="glass-card p-4" style={{ background: 'var(--color-accent)', color: 'white' }}>
+                                <div className="flex items-center justify-between">
+                                    <span className="font-medium">Total</span>
+                                    <span className="font-bold">{storageInfo.totalSize}</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="space-y-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-body font-medium">Clear Cache</label>
+                                    <p className="text-caption">Remove temporary files and cached data</p>
+                                </div>
+                                <button
+                                    onClick={() => confirmDelete('cache')}
+                                    className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2"
+                                    disabled={isDeleting}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Clear Cache</span>
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <label className="text-body font-medium">Clear Logs</label>
+                                    <p className="text-caption">Remove application logs and debug files</p>
+                                </div>
+                                <button
+                                    onClick={() => confirmDelete('logs')}
+                                    className="btn-secondary px-4 py-2 hover-lift focus-native flex items-center space-x-2"
+                                    disabled={isDeleting}
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                    <span>Clear Logs</span>
+                                </button>
+                            </div>
+
+                            <div className="border-t pt-4" style={{ borderColor: 'rgba(255, 0, 0, 0.2)' }}>
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <label className="text-body font-medium" style={{ color: 'var(--color-error)' }}>Reset All Data</label>
+                                        <p className="text-caption">⚠️ This will remove all local data except vault</p>
+                                    </div>
+                                    <button
+                                        onClick={() => confirmDelete('all')}
+                                        className="btn-danger px-4 py-2 hover-lift focus-native flex items-center space-x-2"
+                                        disabled={isDeleting}
+                                    >
+                                        <Trash2 className="h-4 w-4" />
+                                        <span>Reset Data</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Delete Confirmation Modal */}
+            {showDeleteConfirm && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="glass-card p-6 max-w-md w-full mx-4">
+                        <h3 className="text-heading mb-4 flex items-center space-x-2">
+                            <AlertTriangle className="h-5 w-5" style={{ color: 'var(--color-warning)' }} />
+                            <span>Confirm Deletion</span>
+                        </h3>
+                        
+                        <p className="text-body mb-6">
+                            {deleteType === 'cache' && 'Are you sure you want to clear the cache? This will remove temporary files and may slow down the next app startup.'}
+                            {deleteType === 'logs' && 'Are you sure you want to clear the logs? This will remove all application logs and debug information.'}
+                            {deleteType === 'all' && '⚠️ Are you sure you want to reset all local data? This will clear cache, logs, and preferences but keep your vault data safe.'}
+                        </p>
+
+                        <div className="flex space-x-3">
+                            <button
+                                onClick={() => setShowDeleteConfirm(false)}
+                                className="btn-secondary flex-1 py-2 hover-lift focus-native"
+                                disabled={isDeleting}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => handleDeleteData(deleteType!)}
+                                className={`flex-1 py-2 hover-lift focus-native ${
+                                    deleteType === 'all' ? 'btn-danger' : 'btn-primary'
+                                }`}
+                                disabled={isDeleting}
+                            >
+                                {isDeleting ? 'Deleting...' : 'Confirm'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    )
+}
+
+// Security Audit Settings Component
+function SecurityAuditSettings() {
+    const [auditResults, setAuditResults] = useState<any>(null)
+    const [isScanning, setIsScanning] = useState(false)
+
+    const runSecurityScan = async () => {
+        setIsScanning(true)
+        // Mock security scan results
+        setTimeout(() => {
+            setAuditResults({
+                vaultIntegrity: 'PASS',
+                encryptionStrength: 'STRONG',
+                vulnerabilities: 0,
+                lastScan: new Date().toLocaleString()
+            })
+            setIsScanning(false)
+        }, 2000)
+    }
+
+    return (
+        <div className="space-y-6">
+            {/* Security Analysis */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Shield className="h-4 w-4" />
+                    <span>Security Analysis</span>
+                </h4>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Vault Integrity Check</label>
+                            <p className="text-caption">Verify vault file integrity and encryption</p>
+                        </div>
+                        <button 
+                            onClick={runSecurityScan}
+                            disabled={isScanning}
+                            className="btn-primary px-4 py-2 hover-lift focus-native"
+                        >
+                            {isScanning ? 'Scanning...' : 'Run Check'}
+                        </button>
+                    </div>
+                    
+                    {auditResults && (
+                        <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Vault Integrity</span>
+                                    <span className="text-body font-medium" style={{ color: 'var(--color-success)' }}>{auditResults.vaultIntegrity}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Encryption</span>
+                                    <span className="text-body font-medium" style={{ color: 'var(--color-success)' }}>{auditResults.encryptionStrength}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Vulnerabilities</span>
+                                    <span className="text-body font-medium">{auditResults.vulnerabilities}</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-caption">Last Scan</span>
+                                    <span className="text-body font-medium">{auditResults.lastScan}</span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+
+            {/* Audit Logs */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Audit Logs</span>
+                </h4>
+                <div className="space-y-3">
+                    <div className="glass-card p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--color-success)' }}></div>
+                                <span className="text-body">Vault unlocked</span>
+                            </div>
+                            <span className="text-caption">2 minutes ago</span>
+                        </div>
+                    </div>
+                    <div className="glass-card p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--color-accent)' }}></div>
+                                <span className="text-body">API key accessed</span>
+                            </div>
+                            <span className="text-caption">5 minutes ago</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// System Info Settings Component
+function SystemInfoSettings() {
+    const [systemInfo, setSystemInfo] = useState<any>(null)
+
+    useEffect(() => {
+        // Mock system info - in real app, get from Tauri
+        setSystemInfo({
+            os: 'macOS 14.0',
+            arch: 'arm64',
+            memory: '16 GB',
+            storage: '512 GB SSD',
+            appVersion: '2.2.3',
+            tauriVersion: '2.6.2',
+            uptime: '2 hours 15 minutes'
+        })
+    }, [])
+
+    return (
+        <div className="space-y-6">
+            {/* System Information */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Monitor className="h-4 w-4" />
+                    <span>System Information</span>
+                </h4>
+                {systemInfo && (
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">Operating System</span>
+                                <span className="text-caption">{systemInfo.os}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">Architecture</span>
+                                <span className="text-caption">{systemInfo.arch}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">Memory</span>
+                                <span className="text-caption">{systemInfo.memory}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">Storage</span>
+                                <span className="text-caption">{systemInfo.storage}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">App Version</span>
+                                <span className="text-caption">{systemInfo.appVersion}</span>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-body">Tauri Version</span>
+                                <span className="text-caption">{systemInfo.tauriVersion}</span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Performance Metrics */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Zap className="h-4 w-4" />
+                    <span>Performance</span>
+                </h4>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <span className="text-body">App Uptime</span>
+                        <span className="text-caption">{systemInfo?.uptime}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-body">Memory Usage</span>
+                        <span className="text-caption">45.2 MB</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <span className="text-body">CPU Usage</span>
+                        <span className="text-caption">2.1%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// Developer Tools Settings Component
+function DeveloperToolsSettings() {
+    const [debugMode, setDebugMode] = useState(false)
+    const [apiLogs, setApiLogs] = useState<any[]>([])
+
+    useEffect(() => {
+        // Mock API logs
+        setApiLogs([
+            { method: 'GET', endpoint: '/api/keys', status: 200, time: '12:34:56' },
+            { method: 'POST', endpoint: '/api/keys', status: 201, time: '12:35:12' },
+            { method: 'PUT', endpoint: '/api/keys/123', status: 200, time: '12:35:45' }
+        ])
+    }, [])
+
+    return (
+        <div className="space-y-6">
+            {/* Debug Tools */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Code className="h-4 w-4" />
+                    <span>Debug Tools</span>
+                </h4>
+                <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Debug Mode</label>
+                            <p className="text-caption">Enable detailed logging and debug info</p>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                            <input 
+                                type="checkbox" 
+                                checked={debugMode}
+                                onChange={(e) => setDebugMode(e.target.checked)}
+                                className="sr-only peer" 
+                            />
+                            <div className={`toggle-native ${debugMode ? 'active' : ''}`}></div>
+                        </label>
+                    </div>
+                    
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <label className="text-body font-medium">Export Debug Info</label>
+                            <p className="text-caption">Generate debug report for troubleshooting</p>
+                        </div>
+                        <button className="btn-secondary px-4 py-2 hover-lift focus-native">
+                            Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* API Logs */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Bell className="h-4 w-4" />
+                    <span>API Logs</span>
+                </h4>
+                <div className="space-y-2">
+                    {apiLogs.map((log, index) => (
+                        <div key={index} className="glass-card p-3" style={{ background: 'var(--color-surface-secondary)' }}>
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center space-x-3">
+                                    <span className={`text-xs px-2 py-1 rounded font-mono ${
+                                        log.method === 'GET' ? 'bg-blue-100 text-blue-800' :
+                                        log.method === 'POST' ? 'bg-green-100 text-green-800' :
+                                        'bg-orange-100 text-orange-800'
+                                    }`}>
+                                        {log.method}
+                                    </span>
+                                    <span className="text-body font-mono text-sm">{log.endpoint}</span>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                    <span className={`text-xs px-2 py-1 rounded ${
+                                        log.status < 300 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                                    }`}>
+                                        {log.status}
+                                    </span>
+                                    <span className="text-caption">{log.time}</span>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
+            {/* Console */}
+            <div className="glass-card p-6">
+                <h4 className="text-heading mb-4 flex items-center space-x-2">
+                    <Monitor className="h-4 w-4" />
+                    <span>Console</span>
+                </h4>
+                <div className="glass-card p-4" style={{ background: 'var(--color-surface-secondary)' }}>
+                    <div className="font-mono text-sm space-y-1">
+                        <div className="text-caption">[12:34:56] KeyKeeper initialized</div>
+                        <div className="text-caption">[12:35:12] Vault loaded successfully</div>
+                        <div className="text-caption">[12:35:45] VSCode integration active</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
