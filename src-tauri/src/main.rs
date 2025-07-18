@@ -268,6 +268,28 @@ pub struct VaultMetadata {
     pub salt: Option<String>,
     pub created_at: String,
     pub version: String,
+    pub api_keys_metadata: Vec<ApiKeyMetadata>,
+}
+
+// Non-sensitive metadata for API keys (stored in clear text)
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ApiKeyMetadata {
+    pub id: String,
+    pub name: String,
+    pub service: String,
+    pub description: Option<String>,
+    pub environment: String,
+    pub rate_limit: Option<String>,
+    pub expires_at: Option<String>,
+    pub scopes: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub tags: Vec<String>,
+    pub is_active: bool,
+    pub source_type: Option<String>,
+    pub env_file_path: Option<String>,
+    pub project_path: Option<String>,
+    pub env_file_name: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -573,12 +595,22 @@ async fn show_notification(app: AppHandle, title: String, body: String) -> Resul
 
 #[tauri::command]
 async fn get_api_keys(state: State<'_, AppState>) -> Result<Vec<ApiKey>, String> {
-    if !*state.is_unlocked.lock().await {
-        return Err("Vault is locked".to_string());
-    }
-
     let vault_guard = state.vault.lock().await;
-    Ok(vault_guard.keys.values().cloned().collect())
+    let is_unlocked = *state.is_unlocked.lock().await;
+    
+    if !is_unlocked {
+        // If vault is locked but we have metadata, return keys with encrypted placeholders
+        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "encrypted") {
+            // Return API keys with metadata but encrypted key values
+            Ok(vault_guard.keys.values().cloned().collect())
+        } else {
+            // No metadata available, vault is completely locked
+            return Err("Vault is locked".to_string());
+        }
+    } else {
+        // Vault is unlocked, return all keys with real data
+        Ok(vault_guard.keys.values().cloned().collect())
+    }
 }
 
 #[tauri::command]
@@ -1296,11 +1328,33 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
         key_array.copy_from_slice(&key_bytes);
 
         // Save metadata file for encrypted vaults
+        let api_keys_metadata: Vec<ApiKeyMetadata> = vault.keys.values().map(|api_key| {
+            ApiKeyMetadata {
+                id: api_key.id.clone(),
+                name: api_key.name.clone(),
+                service: api_key.service.clone(),
+                description: api_key.description.clone(),
+                environment: api_key.environment.clone(),
+                rate_limit: api_key.rate_limit.clone(),
+                expires_at: api_key.expires_at.clone(),
+                scopes: api_key.scopes.clone(),
+                created_at: api_key.created_at.clone(),
+                updated_at: api_key.updated_at.clone(),
+                tags: api_key.tags.clone(),
+                is_active: api_key.is_active,
+                source_type: api_key.source_type.clone(),
+                env_file_path: api_key.env_file_path.clone(),
+                project_path: api_key.project_path.clone(),
+                env_file_name: api_key.env_file_name.clone(),
+            }
+        }).collect();
+        
         let metadata = VaultMetadata {
             master_password_hash: vault.master_password_hash.clone(),
             salt: vault.salt.clone(),
             created_at: chrono::Utc::now().to_rfc3339(),
             version: "2.2.3".to_string(),
+            api_keys_metadata,
         };
         
         let metadata_path = vault_path.with_extension("metadata.json");
@@ -1344,6 +1398,31 @@ fn load_vault(vault_path: &PathBuf) -> Result<ApiKeyVault, String> {
                 vault.master_password_hash = metadata.master_password_hash;
                 vault.salt = metadata.salt;
                 vault.encryption_key = Some("encrypted".to_string()); // Placeholder to indicate encryption
+                
+                // Load API keys metadata (without sensitive key data)
+                for api_key_meta in metadata.api_keys_metadata {
+                    let api_key = ApiKey {
+                        id: api_key_meta.id.clone(),
+                        name: api_key_meta.name,
+                        service: api_key_meta.service,
+                        key: "[ENCRYPTED]".to_string(), // Placeholder for encrypted key
+                        description: api_key_meta.description,
+                        environment: api_key_meta.environment,
+                        rate_limit: api_key_meta.rate_limit,
+                        expires_at: api_key_meta.expires_at,
+                        scopes: api_key_meta.scopes,
+                        created_at: api_key_meta.created_at,
+                        updated_at: api_key_meta.updated_at,
+                        tags: api_key_meta.tags,
+                        is_active: api_key_meta.is_active,
+                        source_type: api_key_meta.source_type,
+                        env_file_path: api_key_meta.env_file_path,
+                        project_path: api_key_meta.project_path,
+                        env_file_name: api_key_meta.env_file_name,
+                    };
+                    vault.keys.insert(api_key_meta.id, api_key);
+                }
+                
                 return Ok(vault);
             }
         }
