@@ -42,7 +42,7 @@ export interface RecentActivity {
     timestamp: string;
 }
 
-export interface LoginResult {
+export interface AuthResult {
     success: boolean;
     message?: string;
     token?: string;
@@ -102,8 +102,8 @@ export class KeyKeeperService {
             timeout: 10000, // Increased timeout for enterprise
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'KeyKeeper-VSCode-Extension/2.1.1-Enterprise', // TODO: Update version
-                'X-Extension-Version': '2.1.1-enterprise',
+                'User-Agent': 'KeyKeeper-VSCode-Extension/2.2.3-Enterprise', // TODO: Update version
+                'X-Extension-Version': '2.2.3-enterprise',
                 'X-VSCode-Version': vscode.version,
                 'X-Client-Type': 'vscode-extension',
                 'X-Connection-ID': this.connectionId,
@@ -155,26 +155,25 @@ export class KeyKeeperService {
         }
     }
 
-    async login(account: string, masterPass: string): Promise<LoginResult> {
+    async authenticateWithMasterPassword(masterPass: string): Promise<AuthResult> {
         try {
-            const response = await this.client.post('/api/login', {
-                account,
+            const response = await this.client.post('/api/auth/master-password', {
                 masterPass,
             });
 
             if (response.data.success) {
                 this.authToken = response.data.token;
                 this._isLoggedIn = true;
-                this.logAuditEvent('login', 'success', `User ${account} logged in`);
+                this.logAuditEvent('auth', 'success', `Master password authentication successful`);
                 return { success: true, token: response.data.token };
             } else {
                 this._isLoggedIn = false;
-                this.logAuditEvent('login', 'error', `Login failed for ${account}: ${response.data.message}`);
+                this.logAuditEvent('auth', 'error', `Master password authentication failed: ${response.data.message}`);
                 return { success: false, message: response.data.message };
             }
         } catch (error: any) {
             this._isLoggedIn = false;
-            this.logAuditEvent('login', 'error', `Login error for ${account}: ${error.message}`);
+            this.logAuditEvent('auth', 'error', `Master password authentication error: ${error.message}`);
             return { success: false, message: error.response?.data?.message || error.message };
         }
     }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { KeyKeeperService, ApiKey, LoginResult } from '../utils/keykeeperService';
+import { KeyKeeperService, ApiKey, AuthResult } from '../utils/keykeeperService';
 import { ApiKeysProvider } from '../providers/apiKeysProvider';
 import { ProjectsProvider } from '../providers/projectsProvider';
 import { RecentProvider } from '../providers/recentProvider';
@@ -218,25 +218,22 @@ export function openSettingsCommand() {
     vscode.commands.executeCommand('workbench.action.openSettings', 'keykeeper');
 }
 
-export async function loginCommand(keykeeperService: KeyKeeperService) {
-    const account = await vscode.window.showInputBox({ prompt: 'Enter your KeyKeeper account name' });
-    if (!account) return;
-
+export async function authenticateCommand(keykeeperService: KeyKeeperService) {
     const masterPass = await vscode.window.showInputBox({ prompt: 'Enter your Master Password', password: true });
     if (!masterPass) return;
 
     try {
-        const result = await keykeeperService.login(account, masterPass);
+        const result = await keykeeperService.authenticateWithMasterPassword(masterPass);
         if (result.success) {
-            vscode.window.showInformationMessage('Successfully logged in to KeyKeeper!');
+            vscode.window.showInformationMessage('Successfully authenticated with KeyKeeper!');
             vscode.commands.executeCommand('setContext', 'keykeeper:loggedIn', true);
             vscode.commands.executeCommand('keykeeper.refreshKeys');
         } else {
-            vscode.window.showErrorMessage(`Login failed: ${result.message}`);
+            vscode.window.showErrorMessage(`Authentication failed: ${result.message}`);
             vscode.commands.executeCommand('setContext', 'keykeeper:loggedIn', false);
         }
     } catch (error: any) {
-        vscode.window.showErrorMessage(`Login error: ${error.message}`);
+        vscode.window.showErrorMessage(`Authentication error: ${error.message}`);
         vscode.commands.executeCommand('setContext', 'keykeeper:loggedIn', false);
     }
 } 

@@ -1,6 +1,7 @@
 import type { AppProps } from 'next/app'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import '../styles/globals.css'
+import AuthManager from '../components/AuthManager'
 
 const inter = Inter({
   subsets: ['latin'],
@@ -15,7 +16,9 @@ const jetbrainsMono = JetBrains_Mono({
 export default function App({ Component, pageProps }: AppProps) {
   return (
     <div className={`${inter.variable} ${jetbrainsMono.variable} font-sans`}>
-      <Component {...pageProps} />
+      <AuthManager>
+        <Component {...pageProps} />
+      </AuthManager>
     </div>
   )
 }
