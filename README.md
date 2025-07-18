@@ -144,7 +144,7 @@ keykeeper/
 
 ## License
 
-MIT License. See [LICENSE](LICENSE).
+All rights reserved.  See [LICENSE](LICENSE).
 
 ## Acknowledgements
 

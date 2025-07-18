@@ -1,9 +1,9 @@
 [package]
 name = "keykeeper"
-version = "2.2.3"
+version = "2.2.4"
 description = "A secure API key manager"
-authors = ["cadamfun"]
-license = "MIT"
+authors = ["nikomatt69"]
+license = "AGPL-3.0"
 repository = "https://github.com/nikomatt69/keykeeper"
 edition = "2021"
 

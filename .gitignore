@@ -27,6 +27,7 @@ plan.md
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+.CLAUDE
 
 # Local env files - SECURITY CRITICAL
 .env*.local
