@@ -11,7 +11,7 @@ import {
     createKeyCommand,
     refreshKeysCommand,
     openSettingsCommand,
-    loginCommand
+    authenticateCommand
 } from './commands';
 
 let keykeeperService: KeyKeeperService;
@@ -64,8 +64,8 @@ export function activate(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('keykeeper.openSettings', () =>
             openSettingsCommand()
         ),
-        vscode.commands.registerCommand('keykeeper.login', () =>
-            loginCommand(keykeeperService)
+        vscode.commands.registerCommand('keykeeper.authenticate', () =>
+            authenticateCommand(keykeeperService)
         )
     ];
 
@@ -142,7 +142,7 @@ async function checkLoginStatus() {
             'Login Now'
         ).then(selection => {
             if (selection === 'Login Now') {
-                vscode.commands.executeCommand('keykeeper.login');
+                vscode.commands.executeCommand('keykeeper.authenticate');
             }
         });
     }

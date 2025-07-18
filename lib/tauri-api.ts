@@ -344,6 +344,39 @@ export class TauriAPI {
             callback(event.payload);
         });
     }
+
+    // Native storage commands
+    static async keyringSet(service: string, account: string, password: string): Promise<void> {
+        return await invoke('keyring_set', { service, account, password });
+    }
+
+    static async keyringGet(service: string, account: string): Promise<string> {
+        return await invoke('keyring_get', { service, account });
+    }
+
+    static async keyringDelete(service: string, account: string): Promise<void> {
+        return await invoke('keyring_delete', { service, account });
+    }
+
+    static async getDeviceInfo(): Promise<any> {
+        return await invoke('get_device_info');
+    }
+
+    static async setupAutoStart(enabled: boolean): Promise<void> {
+        return await invoke('setup_auto_start', { enabled });
+    }
+
+    static async disableAutoStart(): Promise<void> {
+        return await invoke('disable_auto_start');
+    }
+
+    static async isAutoStartEnabled(): Promise<boolean> {
+        return await invoke('is_auto_start_enabled');
+    }
+
+    static async showNotification(title: string, body: string): Promise<void> {
+        return await invoke('show_notification', { title, body });
+    }
 }
 
 // Types for biometric and user management

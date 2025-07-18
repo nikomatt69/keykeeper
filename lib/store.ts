@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
 import { invoke } from '@tauri-apps/api/core'
 import type { EnterpriseSettings } from './types'
 import type { VSCodeWorkspace } from './tauri-api'
 import { integrationService } from './services/integrationService'
+import { initializeNativeStorage } from './services/nativeStorageService'
 
 export interface ApiKey {
   id: string
@@ -103,11 +103,10 @@ const defaultSettings: EnterpriseSettings = {
 }
 
 interface AppState {
-  // Auth state
+  // Auth state - simplified to only master password and vault
   isUnlocked: boolean
   isLoading: boolean
   error: string | null
-  isUserLoggedIn: boolean
   hasMasterPassword: boolean
 
   // API Keys state
@@ -130,14 +129,11 @@ interface AppState {
   vscodeWorkspaces: VSCodeWorkspace[]
   lastWorkspaceUpdate: Date | null
 
-  // Actions
+  // Actions - simplified
   setIsUnlocked: (unlocked: boolean) => void
   setIsLoading: (loading: boolean) => void
   setError: (error: string | null) => void
-  setIsUserLoggedIn: (loggedIn: boolean) => void
   setHasMasterPassword: (has: boolean) => void
-  loginUser: (email: string, password: string) => Promise<boolean>
-  registerUser: (email: string, password: string) => Promise<boolean>
   setApiKeys: (keys: ApiKey[]) => void
   setSelectedKey: (key: ApiKey | null) => void
   setSearchQuery: (query: string) => void
@@ -158,19 +154,21 @@ interface AppState {
   searchApiKeys: (query: string) => Promise<void>
   exportVault: () => Promise<string>
 
+  // Native storage actions
+  initializeNativeStorage: () => Promise<void>
+
   // VSCode Workspace Actions
   loadVSCodeWorkspaces: () => Promise<void>
   updateVSCodeWorkspaces: (workspaces: string[]) => Promise<void>
   getProjectVSCodeStatus: (projectPath: string) => Promise<string>
 }
 
-export const useAppStore = create<AppState>()(persist(
+export const useAppStore = create<AppState>()(
   (set, get) => ({
     // Initial state - vault is always locked on app start for security
     isUnlocked: false,
     isLoading: false,
     error: null,
-    isUserLoggedIn: false,
     hasMasterPassword: false,
     apiKeys: [],
     selectedKey: null,
@@ -189,7 +187,6 @@ export const useAppStore = create<AppState>()(persist(
     setIsUnlocked: (unlocked) => set({ isUnlocked: unlocked }),
     setIsLoading: (loading) => set({ isLoading: loading }),
     setError: (error) => set({ error }),
-    setIsUserLoggedIn: (loggedIn) => set({ isUserLoggedIn: loggedIn }),
     setHasMasterPassword: (has) => set({ hasMasterPassword: has }),
     setApiKeys: (keys) => set({ apiKeys: keys, filteredKeys: keys }),
     setSelectedKey: (key) => set({ selectedKey: key }),
@@ -366,33 +363,6 @@ export const useAppStore = create<AppState>()(persist(
       }
     },
 
-    loginUser: async (email: string, password: string) => {
-      try {
-        set({ isLoading: true, error: null })
-        const success = await invoke<boolean>('authenticate_user', { email, password })
-        set({ isUserLoggedIn: success })
-        return success
-      } catch (error) {
-        set({ error: error as string })
-        return false
-      } finally {
-        set({ isLoading: false })
-      }
-    },
-
-    registerUser: async (email: string, password: string) => {
-      try {
-        set({ isLoading: true, error: null })
-        const userId = await invoke<string>('create_user_account', { email, password })
-        set({ isUserLoggedIn: true })
-        return true
-      } catch (error) {
-        set({ error: error as string })
-        return false
-      } finally {
-        set({ isLoading: false })
-      }
-    },
 
     // VSCode Workspace Actions
     loadVSCodeWorkspaces: async () => {
@@ -427,20 +397,16 @@ export const useAppStore = create<AppState>()(persist(
         console.error('Failed to get project VSCode status:', error)
         return 'unknown'
       }
+    },
+
+    // Native storage actions
+    initializeNativeStorage: async () => {
+      try {
+        await initializeNativeStorage()
+      } catch (error) {
+        console.error('Failed to initialize native storage:', error)
+      }
     }
   }),
-  {
-    name: 'keykeeper-store',
-    partialize: (state) => ({
-      // Persist user session and preferences
-      isUserLoggedIn: state?.isUserLoggedIn,
-      hasMasterPassword: state?.hasMasterPassword,
-      sidebarCollapsed: state.sidebarCollapsed,
-      settings: state.settings,
-      // Don't persist sensitive data like API keys, vault unlock state, or temporary UI state
-    }),
 
-    // Optional: Add version for migration support
-    version: 1,
-  }
-))
+)
