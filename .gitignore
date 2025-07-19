@@ -7,15 +7,22 @@ node_modules/
 
 # Testing
 coverage/
-
+extensions/vscode/
 # Next.js
 .next/
 out/
-
+.windsurf
+plan.md
 # Production
 build/
 dist/
-
+START_HERE.md
+setup-native-migration.sh
+reset-auth.js
+GEMINI.md
+CLAUDE.md
+test-keyring.js
+.yarnrc.yml
 # Misc
 .DS_Store
 *.pem
@@ -68,6 +75,12 @@ next-env.d.ts
 # Tauri
 src-tauri/target/
 src-tauri/Cargo.lock
+START_HERE.md
+setup-native-migration.sh
+reset-auth.js
+GEMINI.md
+CLAUDE.md
+.yarnrc.yml
 
 # IDE
 .vscode/
