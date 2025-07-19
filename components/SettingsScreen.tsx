@@ -71,10 +71,10 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
         description: 'Usage monitoring and analytics'
     },
     {
-        id: 'team',
-        title: 'Team',
-        icon: Users,
-        description: 'Collaboration and team management'
+        id: 'extension-logs',
+        title: 'Extension Logs',
+        icon: Code,
+        description: 'Communication logs between VSCode extension and desktop app'
     },
     {
         id: 'user',
@@ -439,8 +439,8 @@ export default function SettingsScreen() {
                                         />
                                     )}
 
-                                    {activeSection === 'team' && (
-                                        <TeamSettings />
+                                    {activeSection === 'extension-logs' && (
+                                        <ExtensionLogsSettings />
                                     )}
 
                                     {activeSection === 'user' && (
@@ -1431,18 +1431,188 @@ function AnalyticsSettings({ settings, onChange }: {
 }
 
 // Team Settings Component
-function TeamSettings() {
+function ExtensionLogsSettings() {
+    const [logs, setLogs] = useState<Array<{
+        timestamp: string
+        level: 'info' | 'warning' | 'error'
+        source: 'extension' | 'desktop'
+        message: string
+        endpoint?: string
+        duration?: number
+    }>>([])
+    const [isLive, setIsLive] = useState(false)
+    const [filter, setFilter] = useState<'all' | 'info' | 'warning' | 'error'>('all')
+
+    useEffect(() => {
+        loadExtensionLogs()
+        if (isLive) {
+            const interval = setInterval(loadExtensionLogs, 2000)
+            return () => clearInterval(interval)
+        }
+    }, [isLive])
+
+    const loadExtensionLogs = async () => {
+        try {
+            // In real implementation, fetch from Tauri command
+            // const logs = await TauriAPI.getExtensionLogs()
+            
+            // Mock logs for now showing typical extension-desktop communication
+            const mockLogs = [
+                {
+                    timestamp: new Date().toISOString(),
+                    level: 'info' as const,
+                    source: 'extension' as const,
+                    message: 'VSCode extension initialized',
+                    endpoint: '/health'
+                },
+                {
+                    timestamp: new Date(Date.now() - 30000).toISOString(),
+                    level: 'info' as const,
+                    source: 'desktop' as const,
+                    message: 'VSCode server started on port 27182',
+                },
+                {
+                    timestamp: new Date(Date.now() - 60000).toISOString(),
+                    level: 'info' as const,
+                    source: 'extension' as const,
+                    message: 'Fetching API keys',
+                    endpoint: '/api/keys',
+                    duration: 45
+                },
+                {
+                    timestamp: new Date(Date.now() - 90000).toISOString(),
+                    level: 'info' as const,
+                    source: 'extension' as const,
+                    message: 'Project workspace detected',
+                    endpoint: '/api/projects'
+                },
+                {
+                    timestamp: new Date(Date.now() - 120000).toISOString(),
+                    level: 'warning' as const,
+                    source: 'extension' as const,
+                    message: 'Connection timeout, retrying...',
+                    endpoint: '/api/keys'
+                }
+            ]
+            setLogs(mockLogs)
+        } catch (error) {
+            console.error('Failed to load extension logs:', error)
+        }
+    }
+
+    const clearLogs = async () => {
+        try {
+            // await TauriAPI.clearExtensionLogs()
+            setLogs([])
+        } catch (error) {
+            console.error('Failed to clear logs:', error)
+        }
+    }
+
+    const filteredLogs = logs.filter(log => filter === 'all' || log.level === filter)
+
+    const getLevelColor = (level: string) => {
+        switch (level) {
+            case 'error': return 'var(--color-danger)'
+            case 'warning': return 'var(--color-warning)'
+            case 'info': return 'var(--color-success)'
+            default: return 'var(--color-text-secondary)'
+        }
+    }
+
     return (
         <div className="space-y-6">
-            <div className="p-6 text-center glass-card">
-                <Users className="mx-auto mb-4 w-12 h-12" style={{ color: 'var(--color-text-tertiary)' }} />
-                <h4 className="mb-2 text-heading">Team Features</h4>
-                <p className="mb-4 text-caption">
-                    The team collaboration features are coming in the next version.
-                </p>
-                <button className="px-6 py-2 btn-primary hover-lift focus-native">
-                    Request Beta Access
-                </button>
+            {/* Extension Status */}
+            <div className="p-6 glass-card">
+                <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-heading">Extension Status</h4>
+                    <div className="flex items-center space-x-2">
+                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <span className="text-body">Connected</span>
+                    </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <span className="text-caption">Server Port</span>
+                        <p className="text-body font-medium">27182</p>
+                    </div>
+                    <div>
+                        <span className="text-caption">Active Connections</span>
+                        <p className="text-body font-medium">1</p>
+                    </div>
+                </div>
+            </div>
+
+            {/* Log Controls */}
+            <div className="p-6 glass-card">
+                <div className="flex justify-between items-center mb-4">
+                    <h4 className="text-heading">Communication Logs</h4>
+                    <div className="flex items-center space-x-3">
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value as any)}
+                            className="px-3 py-1 text-sm border rounded focus-native"
+                        >
+                            <option value="all">All Levels</option>
+                            <option value="info">Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                        <button
+                            onClick={() => setIsLive(!isLive)}
+                            className={`px-3 py-1 text-sm rounded focus-native ${
+                                isLive ? 'bg-green-100 text-green-800' : 'btn-secondary'
+                            }`}
+                        >
+                            {isLive ? 'Live' : 'Paused'}
+                        </button>
+                        <button
+                            onClick={clearLogs}
+                            className="px-3 py-1 text-sm btn-secondary focus-native"
+                        >
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                {/* Logs Display */}
+                <div className="h-80 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg overflow-y-auto font-mono text-sm">
+                    {filteredLogs.length === 0 ? (
+                        <p className="text-center text-gray-500 py-8">No logs to display</p>
+                    ) : (
+                        <div className="space-y-1">
+                            {filteredLogs.map((log, index) => (
+                                <div key={index} className="flex items-start space-x-3">
+                                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">
+                                        {new Date(log.timestamp).toLocaleTimeString()}
+                                    </span>
+                                    <span 
+                                        className="w-16 text-xs font-medium flex-shrink-0 uppercase"
+                                        style={{ color: getLevelColor(log.level) }}
+                                    >
+                                        {log.level}
+                                    </span>
+                                    <span className="w-20 text-xs text-blue-600 flex-shrink-0">
+                                        {log.source}
+                                    </span>
+                                    <span className="flex-1 text-gray-800 dark:text-gray-200">
+                                        {log.message}
+                                        {log.endpoint && (
+                                            <span className="ml-2 text-purple-600">
+                                                {log.endpoint}
+                                            </span>
+                                        )}
+                                        {log.duration && (
+                                            <span className="ml-2 text-gray-500">
+                                                ({log.duration}ms)
+                                            </span>
+                                        )}
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     )

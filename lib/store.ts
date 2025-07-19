@@ -11,7 +11,7 @@ export interface ApiKey {
   service: string
   key: string
   description?: string
-  environment: 'dev' | 'staging' | 'production'
+  environment: 'development' | 'staging' | 'production'
   rate_limit?: string
   expires_at?: string
   scopes: string[]
@@ -156,7 +156,7 @@ interface AppState {
 
   // Native storage actions
   initializeNativeStorage: () => Promise<void>
-  
+
   // App initialization
   initializeApp: () => Promise<void>
 
@@ -429,14 +429,14 @@ export const useAppStore = create<AppState>()(
       try {
         console.log('🚀 Initializing app state...')
         set({ isLoading: true, error: null })
-        
+
         // Check if backend has master password set
         const hasMasterPassword = await invoke<boolean>('is_master_password_set')
         console.log('🔑 Backend master password status:', hasMasterPassword)
-        
+
         // Sync frontend state with backend
         set({ hasMasterPassword })
-        
+
         console.log('✅ App initialization complete')
       } catch (error) {
         console.error('❌ Failed to initialize app:', error)

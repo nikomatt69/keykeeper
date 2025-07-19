@@ -53,7 +53,7 @@ export function getEnvironmentColor(environment: string) {
       return 'bg-danger-100 text-danger-700 border-danger-200'
     case 'staging':
       return 'bg-warning-100 text-warning-700 border-warning-200'
-    case 'dev':
+    case 'development':
       return 'bg-success-100 text-success-700 border-success-200'
     default:
       return 'bg-primary-100 text-primary-700 border-primary-200'

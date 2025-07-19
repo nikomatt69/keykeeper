@@ -152,7 +152,7 @@ export default function Sidebar() {
               <div className="flex justify-between items-center px-3 py-1">
                 <span className="text-caption">Development</span>
                 <span className="tag-native badge-dev" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {apiKeys.filter(k => k.environment === 'dev').length}
+                  {apiKeys.filter(k => k.environment === 'development').length}
                 </span>
               </div>
             </div>

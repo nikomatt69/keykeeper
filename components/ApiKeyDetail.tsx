@@ -105,7 +105,7 @@ export default function ApiKeyDetail() {
         return 'badge-production'
       case 'staging':
         return 'badge-staging'
-      case 'dev':
+      case 'development':
         return 'badge-dev'
       default:
         return 'tag-native'
