@@ -102,8 +102,8 @@ export class KeyKeeperService {
             timeout: 10000, // Increased timeout for enterprise
             headers: {
                 'Content-Type': 'application/json',
-                'User-Agent': 'KeyKeeper-VSCode-Extension/2.2.3-Enterprise', // TODO: Update version
-                'X-Extension-Version': '2.2.3-enterprise',
+                'User-Agent': 'KeyKeeper-VSCode-Extension/2.2.5-Enterprise', // TODO: Update version
+                'X-Extension-Version': '2.2.5-enterprise',
                 'X-VSCode-Version': vscode.version,
                 'X-Client-Type': 'vscode-extension',
                 'X-Connection-ID': this.connectionId,

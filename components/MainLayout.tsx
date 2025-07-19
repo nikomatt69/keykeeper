@@ -26,7 +26,7 @@ export default function MainLayout() {
   }, [loadApiKeys])
 
   return (
-    <div className="h-screen flex overflow-hidden" style={{ backgroundColor: 'var(--color-background)' }}>
+    <div className="flex overflow-hidden h-screen" style={{ backgroundColor: 'var(--color-background)' }}>
       {/* Sidebar */}
       <motion.div
         initial={{ x: -300 }}
@@ -38,7 +38,7 @@ export default function MainLayout() {
       </motion.div>
 
       {/* Main Content */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex overflow-hidden flex-1">
         {/* API Keys List */}
         <motion.div
           initial={{ opacity: 0 }}
@@ -51,20 +51,15 @@ export default function MainLayout() {
             borderRight: '1px solid rgba(0, 0, 0, 0.08)'
           }}
         >
-          <div className="h-full flex flex-col">
+
+          <div className="flex flex-col h-full">
+
             <ApiKeyList />
-            
+
             {/* Drag & Drop Zone - Only show when no keys or as help section */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-              <DragDropZone 
-                onFileImport={(filePath, projectPath) => {
-                  console.log('File imported:', filePath, 'Project:', projectPath);
-                  // Refresh the keys list after import
-                  loadApiKeys();
-                }}
-              />
-            </div>
+
           </div>
+
         </motion.div>
 
         {/* API Key Detail */}

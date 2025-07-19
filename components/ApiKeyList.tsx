@@ -202,18 +202,18 @@ export default function ApiKeyList() {
                         <div className="flex items-center space-x-1">
                           <button
                             onClick={(e) => copyToClipboard(apiKey.key, e)}
-                            className="btn-secondary p-1 hover-lift focus-native"
+                            className="btn-secondary p-1 hover-lift focus-native flex items-center justify-center"
                             style={{
                               minWidth: '28px',
                               minHeight: '28px',
                               borderRadius: 'var(--radius-sm)'
                             }}
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy className="h-3 w-3 flex-shrink-0" />
                           </button>
                           <button
                             onClick={(e) => toggleKeyVisibility(apiKey.id, e)}
-                            className="btn-secondary p-1 hover-lift focus-native"
+                            className="btn-secondary p-1 hover-lift focus-native flex items-center justify-center"
                             style={{
                               minWidth: '28px',
                               minHeight: '28px',
@@ -221,9 +221,9 @@ export default function ApiKeyList() {
                             }}
                           >
                             {visibleKeys.has(apiKey.id) ? (
-                              <EyeOff className="h-3 w-3" />
+                              <EyeOff className="h-3 w-3 flex-shrink-0" />
                             ) : (
-                              <Eye className="h-3 w-3" />
+                              <Eye className="h-3 w-3 flex-shrink-0" />
                             )}
                           </button>
                         </div>

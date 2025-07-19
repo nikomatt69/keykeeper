@@ -276,6 +276,7 @@ pub struct VaultMetadata {
 pub struct ApiKeyMetadata {
     pub id: String,
     pub name: String,
+    pub key: String,
     pub service: String,
     pub description: Option<String>,
     pub environment: String,
@@ -342,6 +343,50 @@ pub struct AppState {
     // VSCode server state
     pub vscode_server_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     pub vscode_server_running: Arc<AtomicBool>,
+}
+
+
+
+fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
+    let salt = b"keykeeper_salt_v1"; // Fixed salt for simplicity
+    let key_bytes = derive_key_from_password(password, salt);
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
+    
+    let mut nonce_bytes = [0u8; 12];
+    OsRng.fill_bytes(&mut nonce_bytes);
+    let nonce = Nonce::from_slice(&nonce_bytes);
+    
+    let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
+        .map_err(|e| format!("Encryption failed: {}", e))?;
+    
+    // Combine nonce + ciphertext and encode as base64
+    let mut combined = nonce_bytes.to_vec();
+    combined.extend_from_slice(&ciphertext);
+    Ok(general_purpose::STANDARD.encode(combined))
+}
+
+fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
+    let salt = b"keykeeper_salt_v1"; // Same fixed salt
+    let key_bytes = derive_key_from_password(password, salt);
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
+    
+    let combined = general_purpose::STANDARD.decode(encrypted)
+        .map_err(|e| format!("Base64 decode failed: {}", e))?;
+    
+    if combined.len() < 12 {
+        return Err("Invalid encrypted data".to_string());
+    }
+    
+    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let nonce = Nonce::from_slice(nonce_bytes);
+    
+    let plaintext = cipher.decrypt(nonce, ciphertext)
+        .map_err(|e| format!("Decryption failed: {}", e))?;
+    
+    String::from_utf8(plaintext)
+        .map_err(|e| format!("UTF-8 decode failed: {}", e))
 }
 
 #[tauri::command]
@@ -600,7 +645,7 @@ async fn get_api_keys(state: State<'_, AppState>) -> Result<Vec<ApiKey>, String>
     
     if !is_unlocked {
         // If vault is locked but we have metadata, return keys with encrypted placeholders
-        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "encrypted") {
+        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "[]") {
             // Return API keys with metadata but encrypted key values
             Ok(vault_guard.keys.values().cloned().collect())
         } else {
@@ -710,6 +755,48 @@ async fn search_api_keys(query: String, state: State<'_, AppState>) -> Result<Ve
         .collect();
 
     Ok(filtered_keys)
+}
+
+#[tauri::command]
+async fn get_decrypted_api_key(key_id: String, master_password: String, state: State<'_, AppState>) -> Result<String, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+    
+    // First, verify the master password is correct
+    if let Some(stored_hash) = &vault_guard.master_password_hash {
+        let is_valid = verify(&master_password, stored_hash)
+            .map_err(|e| format!("Password verification failed: {}", e))?;
+        
+        if !is_valid {
+            return Err("Invalid master password".to_string());
+        }
+    } else {
+        return Err("No master password set".to_string());
+    }
+    
+    // Find the API key by ID
+    let api_key = vault_guard.keys.get(&key_id)
+        .ok_or("API key not found".to_string())?;
+    
+    // Check if the key is a placeholder
+    if api_key.key == "[ENCRYPTED]" {
+        return Err("API key is not properly encrypted yet".to_string());
+    }
+    
+    // Try to decrypt the key with the verified master password
+    match decrypt_api_key(&api_key.key, &master_password) {
+        Ok(decrypted) => {
+            info!("API key {} successfully decrypted", key_id);
+            Ok(decrypted)
+        },
+        Err(e) => {
+            error!("Failed to decrypt API key {}: {}", key_id, e);
+            Err(format!("Failed to decrypt API key: {}", e))
+        }
+    }
 }
 
 #[tauri::command]
@@ -1312,7 +1399,7 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
     // Encrypt the vault data if encryption key is available
     let final_data = if let Some(key_str) = &vault.encryption_key {
         // Skip if it's just a placeholder
-        if key_str == "encrypted" {
+        if key_str == "[ENCRYPTED]" {
             return Ok(()); // Don't save if it's just a placeholder
         }
         
@@ -1332,6 +1419,7 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
             ApiKeyMetadata {
                 id: api_key.id.clone(),
                 name: api_key.name.clone(),
+                key: api_key.key.clone(),
                 service: api_key.service.clone(),
                 description: api_key.description.clone(),
                 environment: api_key.environment.clone(),
@@ -1397,15 +1485,15 @@ fn load_vault(vault_path: &PathBuf) -> Result<ApiKeyVault, String> {
                 let mut vault = ApiKeyVault::default();
                 vault.master_password_hash = metadata.master_password_hash;
                 vault.salt = metadata.salt;
-                vault.encryption_key = Some("encrypted".to_string()); // Placeholder to indicate encryption
+                vault.encryption_key = Some("[ENCRYPTED]".to_string()); // Placeholder to indicate encryption
                 
-                // Load API keys metadata (without sensitive key data)
+                // Load API keys metadata (with encrypted key data)
                 for api_key_meta in metadata.api_keys_metadata {
                     let api_key = ApiKey {
                         id: api_key_meta.id.clone(),
                         name: api_key_meta.name,
                         service: api_key_meta.service,
-                        key: "[ENCRYPTED]".to_string(), // Placeholder for encrypted key
+                        key: api_key_meta.key.clone(), // Placeholder for encrypted key
                         description: api_key_meta.description,
                         environment: api_key_meta.environment,
                         rate_limit: api_key_meta.rate_limit,
@@ -1431,6 +1519,50 @@ fn load_vault(vault_path: &PathBuf) -> Result<ApiKeyVault, String> {
     // If no metadata file exists, vault appears to be encrypted - return empty vault
     info!("Vault appears to be encrypted, will require unlock");
     Ok(ApiKeyVault::default())
+}
+
+// Decrypt vault file using password
+fn decrypt_vault_with_password(vault_path: &PathBuf, password: &str) -> Result<ApiKeyVault, String> {
+    if !vault_path.exists() {
+        return Err("Vault file not found".to_string());
+    }
+
+    let encrypted_contents = fs::read_to_string(vault_path)
+        .map_err(|e| format!("Failed to read vault file: {}", e))?;
+
+    // Try to parse as JSON first (unencrypted vault)
+    if let Ok(vault) = serde_json::from_str::<ApiKeyVault>(&encrypted_contents) {
+        return Ok(vault);
+    }
+
+    // File is encrypted, need to decrypt it
+    // Get salt from metadata file
+    let metadata_path = vault_path.with_extension("metadata.json");
+    if !metadata_path.exists() {
+        return Err("Metadata file not found for encrypted vault".to_string());
+    }
+
+    let metadata_contents = fs::read_to_string(&metadata_path)
+        .map_err(|e| format!("Failed to read metadata: {}", e))?;
+    let metadata: VaultMetadata = serde_json::from_str(&metadata_contents)
+        .map_err(|e| format!("Failed to parse metadata: {}", e))?;
+
+    let salt = metadata.salt.ok_or("No salt found in metadata")?;
+    let salt_bytes = general_purpose::STANDARD
+        .decode(&salt)
+        .map_err(|e| format!("Failed to decode salt: {}", e))?;
+
+    // Derive key from password and salt
+    let key = derive_key_from_password(password, &salt_bytes);
+
+    // Decrypt the vault data
+    let decrypted_json = decrypt_data(&encrypted_contents, &key)?;
+
+    // Parse decrypted JSON
+    let vault: ApiKeyVault = serde_json::from_str(&decrypted_json)
+        .map_err(|e| format!("Failed to parse decrypted vault: {}", e))?;
+
+    Ok(vault)
 }
 
 fn load_encrypted_vault(vault_path: &PathBuf, _password: &str) -> Result<ApiKeyVault, String> {
@@ -3529,6 +3661,7 @@ pub fn run() {
             update_api_key,
             delete_api_key,
             search_api_keys,
+            get_decrypted_api_key,
             search_api_keys_by_query,
             export_vault,
             start_vscode_server,

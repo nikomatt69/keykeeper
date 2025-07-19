@@ -1,7 +1,7 @@
 {
   "name": "keykeeper",
   "private": true,
-  "version": "2.2.4",
+  "version": "2.2.5",
   "license": "AGPL-3.0",
   "scripts": {
     "build": "next build",
