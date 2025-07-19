@@ -1,21 +1,78 @@
-MIT License
+# KeyKeeper License
 
-Copyright (c) 2024 KeyKeeper
+## Dual Licensing
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+KeyKeeper is dual-licensed under the terms of the GNU Affero General Public License v3.0 (AGPL-3.0) and a commercial license.
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+---
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
+## Open Source License (AGPL-3.0)
+
+**Copyright (c) 2024 nikomatt69**
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+### Additional Terms under AGPL-3.0
+
+If you run a modified version of this software on a server and let other users communicate with it there, your server must also allow them to download the complete source code of the modified version running there.
+
+---
+
+## Commercial License
+
+If you wish to use KeyKeeper in a commercial product or service without the copyleft requirements of the AGPL-3.0, you may purchase a commercial license.
+
+### Commercial License Benefits:
+- Use KeyKeeper in proprietary applications
+- No obligation to release your application's source code
+- No network copyleft requirements
+- Priority support and updates
+- Indemnification protection
+
+### Commercial License Restrictions:
+- Cannot redistribute the commercial license to third parties
+- Cannot use KeyKeeper to create competing password management services
+- Must comply with usage limits as specified in commercial agreement
+
+---
+
+## License Choice
+
+You may choose to use KeyKeeper under either:
+
+1. **AGPL-3.0** (free, open source, copyleft)
+2. **Commercial License** (paid, proprietary use allowed)
+
+You cannot combine both licenses in the same project.
+
+---
+
+## Contact for Commercial Licensing
+
+For commercial licensing inquiries, please contact:
+- GitHub: [@nikomatt69](https://github.com/nikomatt69)
+- Email: [Your email for commercial inquiries]
+
+---
+
+## Trademark Notice
+
+"KeyKeeper" is a trademark of nikomatt69. This license does not grant permission to use the trade names, trademarks, service marks, or product names of the Licensor.
+
+---
+
+## Full AGPL-3.0 License Text
+
+The complete text of the GNU Affero General Public License v3.0 can be found at: https://www.gnu.org/licenses/agpl-3.0.txt
+
+---
+
+**Note**: This dual licensing model ensures that:
+- Open source projects can use KeyKeeper freely under AGPL-3.0
+- Commercial users who cannot comply with AGPL-3.0 can purchase a commercial license
+- All modifications to the open source version must be shared back to the community
+- The original author retains full commercial rights

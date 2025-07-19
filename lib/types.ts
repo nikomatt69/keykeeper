@@ -5,7 +5,7 @@ export interface ApiKey {
     service: string
     key: string
     description?: string
-    environment: 'dev' | 'staging' | 'production'
+    environment: 'development' | 'staging' | 'production'
     rate_limit?: string
     expires_at?: string
     scopes: string[]
@@ -29,7 +29,7 @@ export interface Project {
 }
 
 export interface ProjectSettings {
-    defaultEnvironment: 'dev' | 'staging' | 'production'
+    defaultEnvironment: 'development' | 'staging' | 'production'
     autoSync: boolean
     vscodeIntegration: boolean
     cursorIntegration: boolean

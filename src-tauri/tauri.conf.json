@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "KeyKeeper",
-  "version": "2.2.3",
-  "identifier": "com.keykeeper.macosx",
+  "version": "2.2.5",
+  "identifier": "com.keykeeper.arm64",
   "build": {
     "beforeBuildCommand": "yarn build",
     "beforeDevCommand": "yarn dev",
@@ -36,7 +36,7 @@
   "bundle": {
     "active": true,
     "category": "DeveloperTool",
-    "copyright": "",
+    "copyright": "Copyright (c) 2024 nikomatt69",
     "externalBin": [],
     "icon": [
       "icons/32x32.png",

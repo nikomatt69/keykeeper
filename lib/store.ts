@@ -11,7 +11,7 @@ export interface ApiKey {
   service: string
   key: string
   description?: string
-  environment: 'dev' | 'staging' | 'production'
+  environment: 'development' | 'staging' | 'production'
   rate_limit?: string
   expires_at?: string
   scopes: string[]
@@ -157,6 +157,9 @@ interface AppState {
   // Native storage actions
   initializeNativeStorage: () => Promise<void>
 
+  // App initialization
+  initializeApp: () => Promise<void>
+
   // VSCode Workspace Actions
   loadVSCodeWorkspaces: () => Promise<void>
   updateVSCodeWorkspaces: (workspaces: string[]) => Promise<void>
@@ -226,15 +229,26 @@ export const useAppStore = create<AppState>()(
     unlockVault: async (password: string) => {
       try {
         set({ isLoading: true, error: null })
+        console.log('🔓 Frontend: Calling backend unlock_vault...')
         const success = await invoke<boolean>('unlock_vault', { password })
+        console.log('🔓 Frontend: Backend returned:', success)
         set({ isUnlocked: success })
         if (success) {
-          await get().loadApiKeys()
+          console.log('✅ Backend unlock successful, loading API keys...')
+          try {
+            await get().loadApiKeys()
+            console.log('✅ API keys loaded successfully')
+          } catch (error) {
+            console.error('❌ Failed to load API keys:', error)
+            // Don't fail the unlock process if loadApiKeys fails
+          }
 
           // Initialize integration service with current settings
           try {
+            console.log('🔌 Initializing integration service...')
             const { settings } = get()
             await integrationService.initialize(settings)
+            console.log('✅ Integration service initialized')
           } catch (error) {
             console.error('Failed to initialize integration service:', error)
             // Don't fail the unlock process if integration service fails
@@ -242,9 +256,11 @@ export const useAppStore = create<AppState>()(
         }
         return success
       } catch (error) {
+        console.error('❌ Frontend unlock error:', error)
         set({ error: error as string })
         return false
       } finally {
+        console.log('🔓 Frontend: Setting loading to false')
         set({ isLoading: false })
       }
     },
@@ -405,6 +421,28 @@ export const useAppStore = create<AppState>()(
         await initializeNativeStorage()
       } catch (error) {
         console.error('Failed to initialize native storage:', error)
+      }
+    },
+
+    // App initialization - sync frontend state with backend
+    initializeApp: async () => {
+      try {
+        console.log('🚀 Initializing app state...')
+        set({ isLoading: true, error: null })
+
+        // Check if backend has master password set
+        const hasMasterPassword = await invoke<boolean>('is_master_password_set')
+        console.log('🔑 Backend master password status:', hasMasterPassword)
+
+        // Sync frontend state with backend
+        set({ hasMasterPassword })
+
+        console.log('✅ App initialization complete')
+      } catch (error) {
+        console.error('❌ Failed to initialize app:', error)
+        set({ error: error as string })
+      } finally {
+        set({ isLoading: false })
       }
     }
   }),

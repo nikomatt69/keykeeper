@@ -2,7 +2,7 @@
     "name": "keykeeper-vscode",
     "displayName": "KeyKeeper Enterprise",
     "description": "Enterprise-grade Secure API Key Management with .env Drag & Drop and Auto-Activation",
-    "version": "2.2.3",
+    "version": "2.2.5",
     "publisher": "nikoemme",
     "repository": {
         "type": "git",

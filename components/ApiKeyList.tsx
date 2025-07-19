@@ -81,7 +81,7 @@ export default function ApiKeyList() {
         return 'badge-production'
       case 'staging':
         return 'badge-staging'
-      case 'dev':
+      case 'development':
         return 'badge-dev'
       default:
         return 'tag-native'
@@ -109,9 +109,9 @@ export default function ApiKeyList() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="flex justify-center items-center h-full">
         <div className="text-center">
-          <div className="spinner-native mx-auto mb-4"></div>
+          <div className="mx-auto mb-4 spinner-native"></div>
           <p style={{ color: 'var(--color-text-secondary)' }}>Loading API keys...</p>
         </div>
       </div>
@@ -119,15 +119,15 @@ export default function ApiKeyList() {
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-6" style={{ borderBottom: '1px solid rgba(0, 0, 0, 0.08)' }}>
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           <div>
             <h2 className="text-heading">
               {searchQuery ? 'Search results' : 'API Keys'}
             </h2>
-            <p className="text-caption mt-1">
+            <p className="mt-1 text-caption">
               {filteredKeys.length} {filteredKeys.length === 1 ? 'key' : 'keys'}
               {searchQuery && ` for "${searchQuery}"`}
             </p>
@@ -138,10 +138,10 @@ export default function ApiKeyList() {
       {/* API Keys List */}
       <div className="flex-1 scrollbar-native" style={{ overflow: 'auto' }}>
         {filteredKeys.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <div className="text-center max-w-sm">
-              <Key className="h-12 w-12 mx-auto mb-4" style={{ color: 'var(--color-text-tertiary)' }} />
-              <h3 className="text-heading mb-2">
+          <div className="flex justify-center items-center h-full">
+            <div className="max-w-sm text-center">
+              <Key className="mx-auto mb-4 w-12 h-12" style={{ color: 'var(--color-text-tertiary)' }} />
+              <h3 className="mb-2 text-heading">
                 {searchQuery ? 'No results' : 'No API key'}
               </h3>
               <p className="text-caption">
@@ -169,20 +169,20 @@ export default function ApiKeyList() {
                 >
                   <div className="space-y-3">
                     {/* Header */}
-                    <div className="flex items-start justify-between">
+                    <div className="flex justify-between items-start">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-body font-semibold truncate">
+                        <h3 className="font-semibold truncate text-body">
                           {apiKey.name}
                         </h3>
-                        <p className="text-caption truncate">
+                        <p className="truncate text-caption">
                           {apiKey.service}
                         </p>
                       </div>
 
-                      <div className="flex items-center space-x-2 ml-3">
+                      <div className="flex items-center ml-3 space-x-2">
                         {(isExpired(apiKey.expires_at) || isExpiringSoon(apiKey.expires_at)) && (
                           <AlertCircle
-                            className="h-4 w-4"
+                            className="w-4 h-4"
                             style={{
                               color: isExpired(apiKey.expires_at) ? 'var(--color-danger)' : 'var(--color-warning)'
                             }}
@@ -197,23 +197,23 @@ export default function ApiKeyList() {
 
                     {/* API Key */}
                     <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <span className="text-caption font-medium">API Key</span>
+                      <div className="flex justify-between items-center">
+                        <span className="font-medium text-caption">API Key</span>
                         <div className="flex items-center space-x-1">
                           <button
                             onClick={(e) => copyToClipboard(apiKey.key, e)}
-                            className="btn-secondary p-1 hover-lift focus-native"
+                            className="flex justify-center items-center p-1 btn-secondary hover-lift focus-native"
                             style={{
                               minWidth: '28px',
                               minHeight: '28px',
                               borderRadius: 'var(--radius-sm)'
                             }}
                           >
-                            <Copy className="h-3 w-3" />
+                            <Copy className="flex-shrink-0 w-3 h-3" />
                           </button>
                           <button
                             onClick={(e) => toggleKeyVisibility(apiKey.id, e)}
-                            className="btn-secondary p-1 hover-lift focus-native"
+                            className="flex justify-center items-center p-1 btn-secondary hover-lift focus-native"
                             style={{
                               minWidth: '28px',
                               minHeight: '28px',
@@ -221,9 +221,9 @@ export default function ApiKeyList() {
                             }}
                           >
                             {visibleKeys.has(apiKey.id) ? (
-                              <EyeOff className="h-3 w-3" />
+                              <EyeOff className="flex-shrink-0 w-3 h-3" />
                             ) : (
-                              <Eye className="h-3 w-3" />
+                              <Eye className="flex-shrink-0 w-3 h-3" />
                             )}
                           </button>
                         </div>
@@ -245,9 +245,9 @@ export default function ApiKeyList() {
                     </div>
 
                     {/* Metadata */}
-                    <div className="flex items-center justify-between text-caption">
+                    <div className="flex justify-between items-center text-caption">
                       <div className="flex items-center space-x-1">
-                        <Calendar className="h-3 w-3" />
+                        <Calendar className="w-3 h-3" />
                         <span>
                           {new Date(apiKey.created_at).toLocaleDateString('en-US')}
                         </span>
@@ -255,7 +255,7 @@ export default function ApiKeyList() {
 
                       {apiKey.tags.length > 0 && (
                         <div className="flex items-center space-x-1">
-                          <Tag className="h-3 w-3" />
+                          <Tag className="w-3 h-3" />
                           <span>{apiKey.tags.length} tags</span>
                         </div>
                       )}
@@ -278,24 +278,24 @@ export default function ApiKeyList() {
 
                     {/* Informazioni path .env */}
                     {apiKey.source_type === 'env_file' && apiKey.project_path && (
-                      <div className="space-y-2 pt-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-caption font-medium">Source Project</span>
+                      <div className="pt-2 space-y-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.05)' }}>
+                        <div className="flex justify-between items-center">
+                          <span className="font-medium text-caption">Source Project</span>
                           <VSCodeStatusIndicator
                             status={vscodeStatuses[apiKey.id] as 'open' | 'closed' | 'unknown' || 'unknown'}
                             size="sm"
                           />
                         </div>
                         <div className="flex items-center space-x-2">
-                          <Folder className="h-3 w-3 text-gray-400" />
-                          <span className="text-caption truncate">
+                          <Folder className="w-3 h-3 text-gray-400" />
+                          <span className="truncate text-caption">
                             {apiKey.project_path.split('/').pop() || 'Unknown Project'}
                           </span>
                         </div>
                         {apiKey.env_file_name && (
                           <div className="flex items-center space-x-2">
-                            <FileText className="h-3 w-3 text-gray-400" />
-                            <span className="text-caption truncate">
+                            <FileText className="w-3 h-3 text-gray-400" />
+                            <span className="truncate text-caption">
                               {apiKey.env_file_name}
                             </span>
                           </div>

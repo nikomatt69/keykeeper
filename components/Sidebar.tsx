@@ -13,6 +13,8 @@ import { useAppStore } from '../lib/store'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import ThemeToggle from './ThemeToggle'
+import DragDropZone from './DragDropZone'
+import { useEffect } from 'react'
 
 export default function Sidebar() {
   const {
@@ -21,6 +23,7 @@ export default function Sidebar() {
     setShowAddModal,
     lockVault,
     exportVault,
+    loadApiKeys,
     searchQuery,
     setSearchQuery,
     apiKeys,
@@ -45,24 +48,26 @@ export default function Sidebar() {
       console.error('Export failed:', error)
     }
   }
-
+  useEffect(() => {
+    loadApiKeys()
+  }, [loadApiKeys])
   return (
-    <div className="h-full flex flex-col sidebar-native">
+    <div className="flex flex-col h-full sidebar-native">
       {/* Header */}
       <div className="p-6 border-subtle">
-        <div className="flex items-center justify-between">
+        <div className="flex justify-between items-center">
           {!sidebarCollapsed && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="flex items-center space-x-3"
             >
-              <img src="/assets/icon.png" alt="KeyKeeper" className="h-14 w-14 glass-card flex items-center justify-center" style={{
+              <img src="/assets/icon.png" alt="KeyKeeper" className="flex justify-center items-center w-14 h-14 glass-card" style={{
 
                 borderRadius: 'var(--radius-md)'
               }} />
               <div>
-                <img src="/assets/logo.png" alt="KeyKeeper" className="h-10 " />
+                <img src="/assets/logo.png" alt="KeyKeeper" className="h-10" />
                 <p className="text-caption text-contrast-medium">
                   {apiKeys.length} API keys
                 </p>
@@ -72,7 +77,7 @@ export default function Sidebar() {
 
           <button
             onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="btn-secondary p-2 hover-lift focus-native"
+            className="p-2 btn-secondary hover-lift focus-native"
             style={{
               minWidth: '36px',
               minHeight: '36px',
@@ -80,9 +85,9 @@ export default function Sidebar() {
             }}
           >
             {sidebarCollapsed ? (
-              <ChevronRight className="h-5 w-5 text-contrast-medium" />
+              <ChevronRight className="w-5 h-5 text-contrast-medium" />
             ) : (
-              <ChevronLeft className="h-5 w-5 text-contrast-medium" />
+              <ChevronLeft className="w-5 h-5 text-contrast-medium" />
             )}
           </button>
         </div>
@@ -93,26 +98,26 @@ export default function Sidebar() {
         <div className="p-4 border-subtle">
           <div className="relative">
             <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-contrast-low"
+              className="absolute left-3 top-1/2 w-4 h-4 transform -translate-y-1/2 text-contrast-low"
             />
             <input
               type="text"
               placeholder="Search API keys..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="search-native focus-native w-full"
+              className="w-full search-native focus-native"
             />
           </div>
         </div>
       )}
 
       {/* Navigation */}
-      <div className="flex-1 p-4 space-y-2 scrollbar-native overflow-auto">
+      <div className="overflow-auto flex-1 p-4 space-y-2 scrollbar-native">
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={() => setShowAddModal(true)}
-          className={`btn-primary hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center space-x-3 p-3'
+          className={`btn-primary hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center p-3 space-x-3'
             }`}
           style={{
             width: '100%',
@@ -120,18 +125,18 @@ export default function Sidebar() {
             fontWeight: '500'
           }}
         >
-          <Plus className="h-5 w-5" />
+          <Plus className="w-5 h-5" />
           {!sidebarCollapsed && <span>New API Key</span>}
         </motion.button>
 
         {!sidebarCollapsed && (
-          <div className="space-y-1 pt-4">
-            <div className="flex items-center space-x-2 px-3 py-2" style={{ color: 'var(--color-text-secondary)' }}>
-              <Key className="h-4 w-4" />
-              <span className="text-body font-medium">My API Keys</span>
+          <div className="pt-4 space-y-1">
+            <div className="flex items-center px-3 py-2 space-x-2" style={{ color: 'var(--color-text-secondary)' }}>
+              <Key className="w-4 h-4" />
+              <span className="font-medium text-body">My API Keys</span>
             </div>
 
-            <div className="space-y-1 ml-6">
+            <div className="ml-6 space-y-1">
               <div className="flex justify-between items-center px-3 py-1">
                 <span className="text-caption">Production</span>
                 <span className="tag-native badge-production" style={{ fontSize: '10px', padding: '2px 6px' }}>
@@ -147,20 +152,31 @@ export default function Sidebar() {
               <div className="flex justify-between items-center px-3 py-1">
                 <span className="text-caption">Development</span>
                 <span className="tag-native badge-dev" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {apiKeys.filter(k => k.environment === 'dev').length}
+                  {apiKeys.filter(k => k.environment === 'development').length}
                 </span>
               </div>
             </div>
           </div>
         )}
       </div>
+      {!sidebarCollapsed &&
+        <div className="p-2 border-t h-max-[70vh] border-gray-200 dark:border-gray-700">
+          <DragDropZone
+            onFileImport={(filePath, projectPath) => {
+              console.log('File imported:', filePath, 'Project:', projectPath);
+              // Refresh the keys list after import
+              loadApiKeys();
+            }}
+          />
+        </div>
+      }
 
       {/* Footer Actions */}
       <div className="p-4 space-y-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.08)' }}>
         <button
           onClick={handleExport}
           disabled={isLoading}
-          className={`btn-secondary hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center space-x-3 p-3'
+          className={`btn-secondary hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center p-3 space-x-3'
             }`}
           style={{
             width: '100%',
@@ -168,20 +184,20 @@ export default function Sidebar() {
             opacity: isLoading ? '0.5' : '1'
           }}
         >
-          <Download className="h-4 w-4" />
+          <Download className="w-4 h-4" />
           {!sidebarCollapsed && <span className="text-body">Export Vault</span>}
         </button>
 
         {!sidebarCollapsed && (
           <button
             onClick={() => setShowSettingsModal(true)}
-            className="btn-secondary hover-lift focus-native flex items-center space-x-3 p-3"
+            className="flex items-center p-3 space-x-3 btn-secondary hover-lift focus-native"
             style={{
               width: '100%',
               borderRadius: 'var(--radius-md)'
             }}
           >
-            <Settings className="h-4 w-4" />
+            <Settings className="w-4 h-4" />
             <span className="text-body">Settings</span>
           </button>
         )}
@@ -192,7 +208,7 @@ export default function Sidebar() {
             <ThemeToggle />
           </div>
         ) : (
-          <div className="flex items-center justify-between">
+          <div className="flex justify-between items-center">
             <span className="text-body text-contrast-medium">Theme</span>
             <ThemeToggle />
           </div>
@@ -200,7 +216,7 @@ export default function Sidebar() {
 
         <button
           onClick={lockVault}
-          className={`hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center space-x-3 p-3'
+          className={`hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center p-3 space-x-3'
             }`}
           style={{
             width: '100%',
@@ -211,7 +227,7 @@ export default function Sidebar() {
             transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)'
           }}
         >
-          <Lock className="h-4 w-4" />
+          <Lock className="w-4 h-4" />
           {!sidebarCollapsed && <span className="text-body">Lock Vault</span>}
         </button>
       </div>
