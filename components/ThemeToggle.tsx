@@ -29,13 +29,15 @@ export default function ThemeToggle() {
         const newIsDark = !isDark
         setIsDark(newIsDark)
         updateTheme(newIsDark)
-        localStorage.setItem('theme', newIsDark ? 'dark' : 'light')
+        localStorage.setItem('theme', newIsDark ? 'light' : 'dark')
     }
+
+
 
     return (
         <motion.button
             onClick={toggleTheme}
-            className="btn-secondary p-3 hover-lift focus-native"
+            className="p-3 btn-secondary hover-lift focus-native"
             style={{
                 borderRadius: 'var(--radius-md)',
                 minWidth: '44px',
@@ -59,9 +61,9 @@ export default function ThemeToggle() {
                 }}
             >
                 {isDark ? (
-                    <Sun className="h-5 w-5 text-contrast-medium" />
+                    <Sun className="w-5 h-5 text-contrast-medium" />
                 ) : (
-                    <Moon className="h-5 w-5 text-contrast-medium" />
+                    <Moon className="w-5 h-5 text-contrast-medium" />
                 )}
             </motion.div>
         </motion.button>

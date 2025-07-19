@@ -57,7 +57,7 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
 
           // Get VSCode status for the project
           const vscodeStatus = await getProjectVSCodeStatus(result.project_path)
-          
+
           const resultWithStatus: EnvFileWithStatus = {
             ...result,
             vscode_status: vscodeStatus
@@ -184,7 +184,7 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
             name: key.name,
             service: 'Environment Variable',
             key: key.value,
-            environment: detectEnvironment(importResult.file_name) as 'dev' | 'staging' | 'production',
+            environment: detectEnvironment(importResult.file_name) as 'development' | 'staging' | 'production',
             description: `Imported from ${importResult.file_name}`,
             scopes: ['env'],
             tags: ['imported', 'env-file'],
@@ -231,7 +231,7 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
         className={`
           relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 cursor-pointer
           ${isDragOver
-            ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+            ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20'
             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
           }
         `}
@@ -244,10 +244,10 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              className="absolute inset-0 flex items-center justify-center bg-blue-500/10 rounded-lg"
+              className="flex absolute inset-0 justify-center items-center rounded-lg bg-blue-500/10"
             >
               <div className="text-blue-600 dark:text-blue-400">
-                <CloudArrowUpIcon className="w-16 h-16 mx-auto mb-4" />
+                <CloudArrowUpIcon className="mx-auto mb-4 w-16 h-16" />
                 <p className="text-xl font-semibold">Drop your .env file here</p>
               </div>
             </motion.div>
@@ -256,12 +256,12 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
 
         {!isProcessing && !importResult && (
           <div className="space-y-4">
-            <DocumentIcon className="w-12 h-12 mx-auto text-gray-400" />
+            <DocumentIcon className="mx-auto w-12 h-12 text-gray-400" />
             <div>
               <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
                 Drag .env files here or click to browse
               </p>
-              <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
                 Supports .env, .env.local, .env.development, .env.production, .env.staging, .env.test
               </p>
               <button
@@ -269,12 +269,12 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
                   e.stopPropagation()
                   handleFileClick(e)
                 }}
-                className="mt-3 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg transition-colors"
+                className="px-4 py-2 mt-3 text-sm font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
               >
                 Browse Files
               </button>
             </div>
-            <div className="text-xs text-gray-400 space-y-1">
+            <div className="space-y-1 text-xs text-gray-400">
               <p>• Automatically detects project from path</p>
               <p>• Imports API keys and secret variables</p>
               <p>• Activates VSCode extension automatically</p>
@@ -288,7 +288,7 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="w-12 h-12 mx-auto border-4 border-blue-500 border-t-transparent rounded-full"
+              className="mx-auto w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent"
             />
             <p className="text-lg font-medium">Processing .env file...</p>
           </div>
@@ -302,9 +302,9 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="mt-6 bg-white dark:bg-gray-800 rounded-lg border shadow-lg p-6"
+            className="p-6 mt-6 bg-white rounded-lg border shadow-lg dark:bg-gray-800"
           >
-            <div className="flex items-start justify-between mb-4">
+            <div className="flex justify-between items-start mb-4">
               <div className="flex items-center space-x-3">
                 <FolderIcon className="w-8 h-8 text-blue-500" />
                 <div>
@@ -320,10 +320,10 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
 
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-3">
+                <h4 className="mb-3 font-medium text-gray-900 dark:text-gray-100">
                   File and Project Information:
                 </h4>
-                <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-lg">
+                <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
                   <ProjectPathDisplay
                     envFilePath={importResult.path}
                     projectPath={importResult.project_path}
@@ -335,10 +335,10 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
               </div>
 
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
                   Variables found ({importResult.keys.length}):
                 </h4>
-                <div className="max-h-40 overflow-y-auto space-y-1">
+                <div className="overflow-y-auto space-y-1 max-h-40">
                   {importResult.keys.map((key, index) => (
                     <div
                       key={index}
@@ -359,16 +359,16 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
                 </div>
               </div>
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex pt-4 space-x-3">
                 <button
                   onClick={handleImportKeys}
-                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
                 >
                   Import {importResult.keys.filter(k => k.is_secret).length} API Keys
                 </button>
                 <button
                   onClick={() => setImportResult(null)}
-                  className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 transition-colors"
+                  className="px-4 py-2 text-gray-600 transition-colors dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 >
                   Cancel
                 </button>
