@@ -6,7 +6,41 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-vscode-extension:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+          cache-dependency-path: 'extensions/vscode/package-lock.json'
+
+      - name: Install VSCE
+        run: npm install -g @vscode/vsce
+
+      - name: Install VSCode extension dependencies
+        working-directory: extensions/vscode
+        run: npm ci
+
+      - name: Build VSCode extension
+        working-directory: extensions/vscode
+        run: |
+          vsce package --out keykeeper-vscode-${{ github.ref_name }}.vsix
+
+      - name: Upload VSCode extension artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: extensions/vscode/keykeeper-vscode-${{ github.ref_name }}.vsix
+
   release:
+    needs: build-vscode-extension
     permissions:
       contents: write
     strategy:
@@ -52,6 +86,13 @@ jobs:
       - name: Build frontend
         run: yarn build
 
+      - name: Download VSCode extension
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension
+          path: ./vscode-extension
+
       - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
@@ -62,4 +103,13 @@ jobs:
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: true
           prerelease: false
+          includeUpdaterJson: true
           args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+
+      - name: Upload VSCode extension to release
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ github.ref_name }}
+          files: ./vscode-extension/keykeeper-vscode-${{ github.ref_name }}.vsix
+          draft: true
