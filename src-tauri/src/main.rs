@@ -357,7 +357,8 @@ pub struct AppState {
 
 
 fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
-    let salt = b"keykeeper_salt_v1"; // Fixed salt for simplicity
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt); // Same fixed salt
     let key_bytes = derive_key_from_password(password, salt);
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
@@ -376,7 +377,8 @@ fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
 }
 
 fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
-    let salt = b"keykeeper_salt_v1"; // Same fixed salt
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt); // Same fixed salt
     let key_bytes = derive_key_from_password(password, salt);
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
