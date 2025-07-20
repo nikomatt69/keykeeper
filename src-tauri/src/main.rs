@@ -12,8 +12,8 @@ use log::{error, info, warn};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sha2::{Digest, Sha256};
+ 
+use sha2::Sha256;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Error;
@@ -21,9 +21,8 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_keyring::KeyringExt;
@@ -37,7 +36,6 @@ use hyper::service::service_fn;
 use http_body_util::{BodyExt, Full};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
-use std::net::SocketAddr;
 use tokio::net::TcpListener;
 extern crate keyring;
 extern crate whoami;
@@ -358,8 +356,8 @@ pub struct AppState {
 
 fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
     let mut salt = [0u8; 16];
-    OsRng.fill_bytes(&mut salt); // Same fixed salt
-    let key_bytes = derive_key_from_password(password, salt);
+    OsRng.fill_bytes(&mut salt);
+    let key_bytes = derive_key_from_password(password, &salt);
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
     
@@ -370,27 +368,27 @@ fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
     let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| format!("Encryption failed: {}", e))?;
     
-    // Combine nonce + ciphertext and encode as base64
-    let mut combined = nonce_bytes.to_vec();
+    // Combine salt + nonce + ciphertext and encode as base64
+    let mut combined = salt.to_vec();
+    combined.extend_from_slice(&nonce_bytes);
     combined.extend_from_slice(&ciphertext);
     Ok(general_purpose::STANDARD.encode(combined))
 }
 
 fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
-    let mut salt = [0u8; 16];
-    OsRng.fill_bytes(&mut salt); // Same fixed salt
-    let key_bytes = derive_key_from_password(password, salt);
-    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
-    let cipher = Aes256Gcm::new(key);
-    
     let combined = general_purpose::STANDARD.decode(encrypted)
         .map_err(|e| format!("Base64 decode failed: {}", e))?;
     
-    if combined.len() < 12 {
+    if combined.len() < 28 { // 16 (salt) + 12 (nonce)
         return Err("Invalid encrypted data".to_string());
     }
     
-    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let (salt, rest) = combined.split_at(16);
+    let (nonce_bytes, ciphertext) = rest.split_at(12);
+    
+    let key_bytes = derive_key_from_password(password, salt);
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
     let nonce = Nonce::from_slice(nonce_bytes);
     
     let plaintext = cipher.decrypt(nonce, ciphertext)
@@ -656,7 +654,7 @@ async fn get_api_keys(state: State<'_, AppState>) -> Result<Vec<ApiKey>, String>
     
     if !is_unlocked {
         // If vault is locked but we have metadata, return keys with encrypted placeholders
-        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "[]") {
+        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "[ENCRYPTED]") {
             // Return API keys with metadata but encrypted key values
             Ok(vault_guard.keys.values().cloned().collect())
         } else {
@@ -826,19 +824,19 @@ async fn handle_hyper_request(
     req: Request<Incoming>,
     vault: Arc<Mutex<ApiKeyVault>>,
     is_unlocked: Arc<Mutex<bool>>,
-    vault_path: PathBuf,
+    _vault_path: PathBuf,
 ) -> Result<Response<Full<bytes::Bytes>>, Infallible> {
     let method = req.method();
     let path = req.uri().path();
-    let query = req.uri().query().unwrap_or("");
+    let _query = req.uri().query().unwrap_or("");
     
     // Get headers
     let headers = req.headers();
-    let auth_header = headers.get("authorization").and_then(|h| h.to_str().ok());
-    let user_agent = headers.get("user-agent").and_then(|h| h.to_str().ok()).unwrap_or("");
+    let _auth_header = headers.get("authorization").and_then(|h| h.to_str().ok());
+    let _user_agent = headers.get("user-agent").and_then(|h| h.to_str().ok()).unwrap_or("");
     
     // Security headers
-    let security_headers = "Content-Type: application/json\r\n\
+    let _security_headers = "Content-Type: application/json\r\n\
                            X-Content-Type-Options: nosniff\r\n\
                            X-Frame-Options: DENY\r\n\
                            X-XSS-Protection: 1; mode=block\r\n\
@@ -1754,7 +1752,7 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
             ApiKeyMetadata {
                 id: api_key.id.clone(),
                 name: api_key.name.clone(),
-                key: api_key.key.clone(),
+                key: "[ENCRYPTED]".to_string(), // Never store actual keys in metadata
                 service: api_key.service.clone(),
                 description: api_key.description.clone(),
                 environment: api_key.environment.clone(),
@@ -1772,16 +1770,8 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
             }
         }).collect();
         
-        let metadata = VaultMetadata {
-            master_password_hash: vault.master_password_hash.clone(),
-            salt: vault.salt.clone(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            version: "2.2.3".to_string(),
-            api_keys_metadata,
-        };
-        
         let metadata_path = vault_path.with_extension("metadata.json");
-        let metadata_json = serde_json::to_string_pretty(&metadata)
+        let metadata_json = serde_json::to_string_pretty(&api_keys_metadata)
             .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
         fs::write(&metadata_path, metadata_json)
             .map_err(|e| format!("Failed to save metadata: {}", e))?;
@@ -3956,14 +3946,7 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Focus existing window when second instance is launched
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.unminimize();
-            }
-        }))
+
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,

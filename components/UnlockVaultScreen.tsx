@@ -62,7 +62,8 @@ export default function UnlockVaultScreen() {
       }
     } catch (error) {
       console.error('❌ Failed to unlock vault:', error)
-      setError(`An error occurred while unlocking the vault: ${error}`)
+      const errorMessage = error instanceof Error ? error.message : 'An unexpected error occurred'
+      setError(`An error occurred while unlocking the vault: ${errorMessage}`)
     } finally {
       console.log('🔓 Unlock process completed, setting loading to false')
       setIsLoading(false)

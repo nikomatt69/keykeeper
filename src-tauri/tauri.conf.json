@@ -48,20 +48,7 @@
     "resources": [],
     "shortDescription": "A secure API key manager",
     "longDescription": "KeyKeeper is a secure, local API key manager that keeps your keys safe and organized.",
-    "linux": {
-      "appimage": {
-        "bundleMediaFramework": false,
-        "files": {}
-      },
-      "deb": {
-        "files": {}
-      },
-      "rpm": {
-        "epoch": 0,
-        "files": {},
-        "release": "1"
-      }
-    },
+    "linux": {},
     "macOS": {
       "entitlements": null,
       "exceptionDomain": "",

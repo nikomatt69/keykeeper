@@ -1421,7 +1421,7 @@ function ExtensionLogsSettings() {
     const loadExtensionLogs = async () => {
         try {
             // In real implementation, fetch from Tauri command
-          
+
 
             // Mock logs for now showing typical extension-desktop communication
             const mockLogs = [
@@ -1763,13 +1763,13 @@ function UserManagementSettings() {
                         </div>
                     </div>
 
-                    
+
                 </div>
             </div>
 
             {/* Vault File Access */}
-            
-            
+
+
 
             {/* Storage & Data Management */}
             <div className="p-6 glass-card">

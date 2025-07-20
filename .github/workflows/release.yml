@@ -53,7 +53,8 @@ jobs:
         run: yarn build
 
       - name: Build the app
-        uses: tauri-apps/tauri-action@v0
+
+        uses: tauri-apps/tauri-action@v0.4.4   # or a commit SHA
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

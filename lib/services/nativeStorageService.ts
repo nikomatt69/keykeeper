@@ -269,7 +269,11 @@ export const createPersistentSession = async (
 ): Promise<SessionData> => {
   const now = new Date();
   const expiresAt = new Date(now.getTime() + expirationHours * 60 * 60 * 1000);
-  const deviceId = await nativeStorageService.getDeviceId() || '';
+  let deviceId = await nativeStorageService.getDeviceId();
+  if (!deviceId) {
+    deviceId = await nativeStorageService.generateDeviceId();
+  }
+
 
   const sessionData: SessionData = {
     sessionId: crypto.randomUUID(),
