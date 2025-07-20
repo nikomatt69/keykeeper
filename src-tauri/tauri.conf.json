@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "KeyKeeper",
   "version": "2.2.5",
-  "identifier": "com.keykeeper.arm64",
+  "identifier": "com.keykeeper.arm64test",
   "build": {
     "beforeBuildCommand": "yarn build",
     "beforeDevCommand": "yarn dev",

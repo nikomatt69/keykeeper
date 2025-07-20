@@ -11,7 +11,8 @@ import {
     createKeyCommand,
     refreshKeysCommand,
     openSettingsCommand,
-    authenticateCommand
+    authenticateCommand,
+    autoSyncWorkspaceCommand
 } from './commands';
 
 let keykeeperService: KeyKeeperService;
@@ -66,6 +67,9 @@ export function activate(context: vscode.ExtensionContext) {
         ),
         vscode.commands.registerCommand('keykeeper.authenticate', () =>
             authenticateCommand(keykeeperService)
+        ),
+        vscode.commands.registerCommand('keykeeper.autoSyncWorkspace', () =>
+            autoSyncWorkspaceCommand(keykeeperService)
         )
     ];
 

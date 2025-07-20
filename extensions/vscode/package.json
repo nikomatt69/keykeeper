@@ -90,6 +90,12 @@
                 "title": "Login to KeyKeeper",
                 "category": "KeyKeeper",
                 "icon": "$(account)"
+            },
+            {
+                "command": "keykeeper.autoSyncWorkspace",
+                "title": "Auto-Sync Workspace",
+                "category": "KeyKeeper",
+                "icon": "$(sync)"
             }
         ],
         "keybindings": [

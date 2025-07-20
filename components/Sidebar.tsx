@@ -7,13 +7,15 @@ import {
   Download,
   Settings,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Folder
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { save } from '@tauri-apps/plugin-dialog'
 import { writeTextFile } from '@tauri-apps/plugin-fs'
 import ThemeToggle from './ThemeToggle'
 import DragDropZone from './DragDropZone'
+import ProjectSelector from './ProjectSelector'
 import { useEffect } from 'react'
 
 export default function Sidebar() {
@@ -28,7 +30,9 @@ export default function Sidebar() {
     setSearchQuery,
     apiKeys,
     isLoading,
-    setShowSettingsModal
+    setShowSettingsModal,
+    setShowProjectModal,
+    projects
   } = useAppStore()
 
   const handleExport = async () => {
@@ -93,6 +97,9 @@ export default function Sidebar() {
         </div>
       </div>
 
+
+
+
       {/* Search */}
       {!sidebarCollapsed && (
         <div className="p-4 border-subtle">
@@ -130,37 +137,92 @@ export default function Sidebar() {
         </motion.button>
 
         {!sidebarCollapsed && (
-          <div className="pt-4 space-y-1">
-            <div className="flex items-center px-3 py-2 space-x-2" style={{ color: 'var(--color-text-secondary)' }}>
-              <Key className="w-4 h-4" />
-              <span className="font-medium text-body">My API Keys</span>
+          <motion.button
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            onClick={() => setShowProjectModal(true)}
+            className="flex items-center p-3 space-x-3 btn-secondary hover-lift focus-native"
+            style={{
+              width: '100%',
+              borderRadius: 'var(--radius-md)',
+              fontWeight: '500'
+            }}
+          >
+            <Plus className="w-4 h-4" />
+            <span>New Project</span>
+          </motion.button>
+        )}
+
+        {!sidebarCollapsed && (
+          <div className="pt-4 space-y-4">
+            {/* Projects Section */}
+            <div className="space-y-1">
+              <div className="flex items-center px-3 py-2 space-x-2" style={{ color: 'var(--color-text-secondary)' }}>
+                <Folder className="w-4 h-4" />
+                <span className="font-medium text-body">Projects</span>
+              </div>
+
+              <div className="ml-6 space-y-1">
+                {projects.length > 0 ? (
+                  projects.slice(0, 3).map((project) => (
+                    <div key={project.id} className="flex justify-between items-center px-3 py-1">
+                      <span className="truncate text-caption">{project.name}</span>
+                      <span className="tag-native" style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-600)' }}>
+                        {project.settings.default_environment}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="px-3 py-1">
+                    <span className="text-gray-500 text-caption">No projects yet</span>
+                  </div>
+                )}
+                {projects.length > 3 && (
+                  <div className="px-3 py-1">
+                    <span className="text-gray-500 text-caption">+{projects.length - 3} more</span>
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="ml-6 space-y-1">
-              <div className="flex justify-between items-center px-3 py-1">
-                <span className="text-caption">Production</span>
-                <span className="tag-native badge-production" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {apiKeys.filter(k => k.environment === 'production').length}
-                </span>
+            {/* API Keys Section */}
+            <div className="space-y-1">
+              <div className="flex items-center px-3 py-2 space-x-2" style={{ color: 'var(--color-text-secondary)' }}>
+                <Key className="w-4 h-4" />
+                <span className="font-medium text-body">My API Keys</span>
               </div>
-              <div className="flex justify-between items-center px-3 py-1">
-                <span className="text-caption">Staging</span>
-                <span className="tag-native badge-staging" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {apiKeys.filter(k => k.environment === 'staging').length}
-                </span>
-              </div>
-              <div className="flex justify-between items-center px-3 py-1">
-                <span className="text-caption">Development</span>
-                <span className="tag-native badge-dev" style={{ fontSize: '10px', padding: '2px 6px' }}>
-                  {apiKeys.filter(k => k.environment === 'development').length}
-                </span>
+
+              <div className="ml-6 space-y-1">
+                <div className="flex justify-between items-center px-3 py-1">
+                  <span className="text-caption">Production</span>
+                  <span className="tag-native badge-production" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    {apiKeys.filter(k => k.environment === 'production').length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-1">
+                  <span className="text-caption">Staging</span>
+                  <span className="tag-native badge-staging" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    {apiKeys.filter(k => k.environment === 'staging').length}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center px-3 py-1">
+                  <span className="text-caption">Development</span>
+                  <span className="tag-native badge-dev" style={{ fontSize: '10px', padding: '2px 6px' }}>
+                    {apiKeys.filter(k => k.environment === 'development').length}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
         )}
       </div>
+      {!sidebarCollapsed && (
+        <div className="px-4 pb-4">
+          <ProjectSelector showStats={true} />
+        </div>
+      )}
       {!sidebarCollapsed &&
-        <div className="p-2 border-t h-max-[70vh] border-gray-200 dark:border-gray-700">
+        <div className="p-2 border-t h-max-[65vh] border-gray-200 dark:border-gray-700">
           <DragDropZone
             onFileImport={(filePath, projectPath) => {
               console.log('File imported:', filePath, 'Project:', projectPath);

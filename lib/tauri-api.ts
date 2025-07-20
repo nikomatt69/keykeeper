@@ -320,6 +320,61 @@ export class TauriAPI {
         return await invoke('get_user_account');
     }
 
+    // ===============================
+    //  ENHANCED PROJECT MANAGEMENT
+    // ===============================
+
+    // Project CRUD Operations
+    static async createProject(name: string, description?: string, path?: string): Promise<any> {
+        return await invoke('create_project', { name, description, path });
+    }
+
+    static async updateProject(id: string, name?: string, description?: string, settings?: any): Promise<any> {
+        return await invoke('update_project', { id, name, description, settings });
+    }
+
+    static async deleteProject(id: string, reassignKeysTo?: string): Promise<void> {
+        return await invoke('delete_project', { id, reassignKeysTo });
+    }
+
+    static async getProjectById(id: string): Promise<any> {
+        return await invoke('get_project_by_id', { id });
+    }
+
+    // Key-Project Assignment
+    static async assignKeysToProject(projectId: string, keyIds: string[]): Promise<void> {
+        return await invoke('assign_keys_to_project', { projectId, keyIds });
+    }
+
+    static async getKeysByProject(projectId?: string): Promise<ApiKey[]> {
+        return await invoke('get_keys_by_project', { projectId });
+    }
+
+    static async getUnassignedKeys(): Promise<ApiKey[]> {
+        return await invoke('get_unassigned_keys');
+    }
+
+    static async searchKeysInProject(projectId: string, query: string): Promise<ApiKey[]> {
+        return await invoke('search_keys_in_project', { projectId, query });
+    }
+
+    // VSCode Auto-Sync Functions
+    static async syncKeyToEnvFile(keyId: string, projectPath: string, envFileName?: string): Promise<string> {
+        return await invoke('sync_key_to_env_file', { keyId, projectPath, envFileName });
+    }
+
+    static async checkKeyInEnvFile(keyId: string, projectPath: string, envFileName?: string): Promise<boolean> {
+        return await invoke('check_key_in_env_file', { keyId, projectPath, envFileName });
+    }
+
+    static async getEnvFileSuggestions(projectPath: string): Promise<string[]> {
+        return await invoke('get_env_file_suggestions', { projectPath });
+    }
+
+    static async autoSyncWorkspaceEnvFiles(workspacePath: string): Promise<string> {
+        return await invoke('auto_sync_workspace_env_files', { workspacePath });
+    }
+
     // ✅ Event Listeners for real-time communication
     static async onVaultStateChanged(callback: (isUnlocked: boolean) => void) {
         return await listen('vault-state-changed', (event) => {

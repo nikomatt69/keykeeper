@@ -7,18 +7,26 @@ import ApiKeyDetail from './ApiKeyDetail'
 import AddApiKeyModal from './modals/AddApiKeyModal'
 import EditApiKeyModal from './modals/EditApiKeyModal'
 import DeleteApiKeyModal from './modals/DeleteApiKeyModal'
+import ProjectModal from './modals/ProjectModal'
+import AssignKeysModal from './modals/AssignKeysModal'
 import SettingsScreen from './SettingsScreen'
 import DragDropZone from './DragDropZone'
+import ProjectDashboard from './ProjectDashboard'
 
 export default function MainLayout() {
   const {
     selectedKey,
+    selectedProject,
     sidebarCollapsed,
     loadApiKeys,
     showAddModal,
     showEditModal,
     showDeleteModal,
-    showSettingsModal
+    showSettingsModal,
+    showProjectModal,
+    showAssignKeysModal,
+    setShowProjectModal,
+    setShowAssignKeysModal
   } = useAppStore()
 
   useEffect(() => {
@@ -62,8 +70,8 @@ export default function MainLayout() {
 
         </motion.div>
 
-        {/* API Key Detail */}
-        {selectedKey && (
+        {/* API Key Detail or Project Dashboard */}
+        {selectedKey && !selectedProject && (
           <motion.div
             initial={{ x: 400, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -75,6 +83,24 @@ export default function MainLayout() {
             <ApiKeyDetail />
           </motion.div>
         )}
+
+        {/* Project Dashboard */}
+        {selectedProject && (
+          <motion.div
+            initial={{ x: 400, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: 400, opacity: 0 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
+            className="flex-1 p-6 overflow-y-auto"
+            style={{ backgroundColor: 'var(--color-background-tertiary)' }}
+          >
+            <ProjectDashboard 
+              project={selectedProject}
+              onEdit={() => setShowProjectModal(true)}
+              onAssignKeys={() => setShowAssignKeysModal(true)}
+            />
+          </motion.div>
+        )}
       </div>
 
       {/* Modals */}
@@ -82,6 +108,20 @@ export default function MainLayout() {
       {showEditModal && <EditApiKeyModal />}
       {showDeleteModal && <DeleteApiKeyModal />}
       {showSettingsModal && <SettingsScreen />}
+      {showProjectModal && (
+        <ProjectModal 
+          isOpen={showProjectModal}
+          onClose={() => setShowProjectModal(false)}
+          project={selectedProject}
+        />
+      )}
+      {showAssignKeysModal && (
+        <AssignKeysModal 
+          isOpen={showAssignKeysModal}
+          onClose={() => setShowAssignKeysModal(false)}
+          project={selectedProject}
+        />
+      )}
     </div>
   )
 }

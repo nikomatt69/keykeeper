@@ -198,6 +198,138 @@ export class KeyKeeperService {
         console.log('[KeyKeeper Enterprise Audit]', JSON.stringify(auditLog));
     }
 
+    // ===============================
+    //  AUTO-SYNC FUNCTIONALITY
+    // ===============================
+
+    async syncKeyToEnvFile(keyId: string, projectPath: string, envFileName?: string): Promise<string> {
+        try {
+            const response = await this.client.post('/api/keys/sync-to-env', {
+                keyId,
+                projectPath,
+                envFileName: envFileName || '.env'
+            });
+
+            if (response.data.success) {
+                this.logAuditEvent('sync_key_to_env', 'success', `Key ${keyId} synced to ${envFileName || '.env'}`);
+                return response.data.message || 'Key synced successfully';
+            } else {
+                throw new Error(response.data.message || 'Sync failed');
+            }
+        } catch (error: any) {
+            this.logAuditEvent('sync_key_to_env', 'error', `Failed to sync key ${keyId}: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async checkKeyInEnvFile(keyId: string, projectPath: string, envFileName?: string): Promise<boolean> {
+        try {
+            const response = await this.client.get('/api/keys/check-in-env', {
+                params: {
+                    keyId,
+                    projectPath,
+                    envFileName: envFileName || '.env'
+                }
+            });
+
+            return response.data.exists || false;
+        } catch (error: any) {
+            console.warn(`Failed to check key in env file: ${error.message}`);
+            return false;
+        }
+    }
+
+    async getEnvFileSuggestions(projectPath: string): Promise<string[]> {
+        try {
+            const response = await this.client.get('/api/projects/env-files', {
+                params: { projectPath }
+            });
+
+            return response.data.envFiles || [];
+        } catch (error: any) {
+            console.warn(`Failed to get env file suggestions: ${error.message}`);
+            return ['.env'];
+        }
+    }
+
+    async autoSyncWorkspaceEnvFiles(workspacePath: string): Promise<string> {
+        try {
+            const response = await this.client.post('/api/workspace/auto-sync', {
+                workspacePath
+            });
+
+            if (response.data.success) {
+                this.logAuditEvent('auto_sync_workspace', 'success', `Workspace ${workspacePath} auto-synced`);
+                return response.data.message || 'Workspace synced successfully';
+            } else {
+                throw new Error(response.data.message || 'Auto-sync failed');
+            }
+        } catch (error: any) {
+            this.logAuditEvent('auto_sync_workspace', 'error', `Failed to auto-sync workspace: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async intelligentKeyInsertion(keyId: string): Promise<{
+        keyInserted: boolean;
+        envSynced: boolean;
+        message: string;
+    }> {
+        try {
+            // Get current workspace
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            if (!workspaceFolder) {
+                throw new Error('No workspace folder found');
+            }
+
+            const projectPath = workspaceFolder.uri.fsPath;
+            
+            // Check if key exists in .env file
+            const existsInEnv = await this.checkKeyInEnvFile(keyId, projectPath);
+            
+            let envSynced = false;
+            let message = 'Key inserted successfully';
+
+            // If key doesn't exist in .env, ask user if they want to add it
+            if (!existsInEnv) {
+                const choice = await vscode.window.showInformationMessage(
+                    'This API key is not in your .env file. Would you like to add it?',
+                    'Yes, add to .env',
+                    'No, just insert'
+                );
+
+                if (choice === 'Yes, add to .env') {
+                    // Get available .env files
+                    const envFiles = await this.getEnvFileSuggestions(projectPath);
+                    
+                    let selectedEnvFile = '.env';
+                    if (envFiles.length > 1) {
+                        selectedEnvFile = await vscode.window.showQuickPick(envFiles, {
+                            placeHolder: 'Select .env file to update'
+                        }) || '.env';
+                    }
+
+                    // Sync key to selected .env file
+                    const syncResult = await this.syncKeyToEnvFile(keyId, projectPath, selectedEnvFile);
+                    envSynced = true;
+                    message = `Key inserted and added to ${selectedEnvFile}`;
+                    
+                    vscode.window.showInformationMessage(syncResult);
+                }
+            }
+
+            return {
+                keyInserted: true,
+                envSynced,
+                message
+            };
+
+        } catch (error: any) {
+            this.logAuditEvent('intelligent_insertion', 'error', `Failed: ${error.message}`);
+            throw error;
+        }
+    }
+
     private async validateKeyUsageSecurity(key: ApiKey): Promise<void> {
         const config = vscode.workspace.getConfiguration('keykeeper');
         const showWarnings = config.get<boolean>('enterprise.securityWarnings', true);
