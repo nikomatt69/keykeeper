@@ -35,7 +35,7 @@ class NativeStorageService {
     try {
       // Initialize Tauri Store
       this.store = await Store.load('keykeeper-app.dat');
-      
+
       // Initialize device ID if not exists
       const deviceId = await this.getDeviceId();
       if (!deviceId) {
@@ -114,7 +114,7 @@ class NativeStorageService {
       const lastUser = await this.store?.get<string>('lastUser') || null;
       const deviceId = await this.getDeviceId() || '';
       const rememberSession = await this.store?.get<boolean>('rememberSession') || false;
-      
+
       return {
         isUserLoggedIn: Boolean(sessionData && this.isSessionValid(sessionData)),
         hasSessionData,
@@ -148,10 +148,10 @@ class NativeStorageService {
   // Session validation
   private isSessionValid(sessionData: SessionData): boolean {
     if (!sessionData.isActive) return false;
-    
+
     const now = new Date();
     const expiresAt = new Date(sessionData.expiresAt);
-    
+
     return now < expiresAt;
   }
 
@@ -270,7 +270,7 @@ export const createPersistentSession = async (
   const now = new Date();
   const expiresAt = new Date(now.getTime() + expirationHours * 60 * 60 * 1000);
   const deviceId = await nativeStorageService.getDeviceId() || '';
-  
+
   const sessionData: SessionData = {
     sessionId: crypto.randomUUID(),
     userId,
@@ -292,7 +292,7 @@ export const validateStoredSession = async (): Promise<boolean> => {
 
   const now = new Date();
   const expiresAt = new Date(sessionData.expiresAt);
-  
+
   if (now >= expiresAt || !sessionData.isActive) {
     await nativeStorageService.clearSessionData();
     return false;

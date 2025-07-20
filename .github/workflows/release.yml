@@ -1,15 +1,14 @@
-name: Build & Test
+name: Release
 on:
   push:
-    branches: [main, develop]
-  pull_request:
-    branches: [main, develop]
+    tags:
+      - 'v*'
   workflow_dispatch:
 
 jobs:
-  build:
+  release:
     permissions:
-      contents: read
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -53,9 +52,14 @@ jobs:
       - name: Build frontend
         run: yarn build
 
-      - name: Build Tauri app (test build)
+      - name: Build the app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          tagName: v__VERSION__
+          releaseName: 'KeyKeeper v__VERSION__'
+          releaseBody: 'See the assets to download and install this version.'
+          releaseDraft: true
+          prerelease: false
           args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}

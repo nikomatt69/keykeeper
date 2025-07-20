@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Key, Shield, Eye, EyeOff, Lock } from 'lucide-react'
 import { useAppStore } from '../lib/store'
@@ -9,8 +9,33 @@ export default function UnlockVaultScreen() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [successMessage, setSuccessMessage] = useState('')
-
+  const [isDark, setIsDark] = useState(false)
   const { unlockVault, error, setError } = useAppStore()
+
+  const updateTheme = (dark: boolean) => {
+    if (dark) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
+
+
+
+  useEffect(() => {
+    // Check localStorage for saved theme; default to light
+    const savedTheme = localStorage.getItem('theme')
+    if (savedTheme) {
+      setIsDark(savedTheme === 'dark')
+      updateTheme(savedTheme === 'dark')
+    } else {
+      setIsDark(false)
+      updateTheme(false)
+    }
+  }, [])
+
+
+
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

@@ -94,12 +94,6 @@ const SETTINGS_SECTIONS: SettingsSection[] = [
         icon: Monitor,
         description: 'System performance, diagnostics and resource usage'
     },
-    {
-        id: 'developer',
-        title: 'Developer Tools',
-        icon: Code,
-        description: 'Debug tools, API testing and development utilities'
-    }
 ]
 
 export default function SettingsScreen() {
@@ -455,9 +449,6 @@ export default function SettingsScreen() {
                                         <SystemInfoSettings />
                                     )}
 
-                                    {activeSection === 'developer' && (
-                                        <DeveloperToolsSettings />
-                                    )}
                                 </motion.div>
                             </AnimatePresence>
                         </div>
@@ -609,30 +600,6 @@ function SecuritySettings({ settings, onChange }: {
                 </h4>
 
                 <div className="space-y-4">
-                    <div>
-                        <label className="block mb-2 font-medium text-body">Username</label>
-                        <input
-                            type="text"
-                            value={userPreferences?.username || ''}
-                            onChange={e => setUserPreferences({ ...userPreferences, username: e.target.value })}
-                            className="input-native focus-native"
-                            placeholder="Enter username"
-                            style={{ width: '100%' }}
-                            readOnly={false}
-                        />
-                        {userPreferences && userPreferences.username !== (async () => await TauriAPI.getUserAccount()) && (
-                            <button onClick={async () => {
-                                try {
-                                    await TauriAPI.updateUsername(userPreferences.username)
-                                    await loadUserPreferences()
-                                    // Show success notification
-                                } catch (err) {
-                                    // Show error notification
-                                }
-                            }}>Save</button>
-                        )}
-                    </div>
-
                     <div>
                         <label className="block mb-2 font-medium text-body">Theme Preference</label>
                         <select
@@ -1454,8 +1421,8 @@ function ExtensionLogsSettings() {
     const loadExtensionLogs = async () => {
         try {
             // In real implementation, fetch from Tauri command
-            // const logs = await TauriAPI.getExtensionLogs()
-            
+          
+
             // Mock logs for now showing typical extension-desktop communication
             const mockLogs = [
                 {
@@ -1527,18 +1494,18 @@ function ExtensionLogsSettings() {
                 <div className="flex justify-between items-center mb-4">
                     <h4 className="text-heading">Extension Status</h4>
                     <div className="flex items-center space-x-2">
-                        <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
                         <span className="text-body">Connected</span>
                     </div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
                         <span className="text-caption">Server Port</span>
-                        <p className="text-body font-medium">27182</p>
+                        <p className="font-medium text-body">27182</p>
                     </div>
                     <div>
                         <span className="text-caption">Active Connections</span>
-                        <p className="text-body font-medium">1</p>
+                        <p className="font-medium text-body">1</p>
                     </div>
                 </div>
             </div>
@@ -1551,7 +1518,7 @@ function ExtensionLogsSettings() {
                         <select
                             value={filter}
                             onChange={(e) => setFilter(e.target.value as any)}
-                            className="px-3 py-1 text-sm border rounded focus-native"
+                            className="px-3 py-1 text-sm rounded border focus-native"
                         >
                             <option value="all">All Levels</option>
                             <option value="info">Info</option>
@@ -1560,9 +1527,8 @@ function ExtensionLogsSettings() {
                         </select>
                         <button
                             onClick={() => setIsLive(!isLive)}
-                            className={`px-3 py-1 text-sm rounded focus-native ${
-                                isLive ? 'bg-green-100 text-green-800' : 'btn-secondary'
-                            }`}
+                            className={`px-3 py-1 text-sm rounded focus-native ${isLive ? 'text-green-800 bg-green-100' : 'btn-secondary'
+                                }`}
                         >
                             {isLive ? 'Live' : 'Paused'}
                         </button>
@@ -1576,23 +1542,23 @@ function ExtensionLogsSettings() {
                 </div>
 
                 {/* Logs Display */}
-                <div className="h-80 p-4 bg-gray-50 dark:bg-gray-800 rounded-lg overflow-y-auto font-mono text-sm">
+                <div className="overflow-y-auto p-4 h-80 font-mono text-sm bg-gray-50 rounded-lg dark:bg-gray-800">
                     {filteredLogs.length === 0 ? (
-                        <p className="text-center text-gray-500 py-8">No logs to display</p>
+                        <p className="py-8 text-center text-gray-500">No logs to display</p>
                     ) : (
                         <div className="space-y-1">
                             {filteredLogs.map((log, index) => (
                                 <div key={index} className="flex items-start space-x-3">
-                                    <span className="text-gray-400 text-xs w-20 flex-shrink-0">
+                                    <span className="flex-shrink-0 w-20 text-xs text-gray-400">
                                         {new Date(log.timestamp).toLocaleTimeString()}
                                     </span>
-                                    <span 
-                                        className="w-16 text-xs font-medium flex-shrink-0 uppercase"
+                                    <span
+                                        className="flex-shrink-0 w-16 text-xs font-medium uppercase"
                                         style={{ color: getLevelColor(log.level) }}
                                     >
                                         {log.level}
                                     </span>
-                                    <span className="w-20 text-xs text-blue-600 flex-shrink-0">
+                                    <span className="flex-shrink-0 w-20 text-xs text-blue-600">
                                         {log.source}
                                     </span>
                                     <span className="flex-1 text-gray-800 dark:text-gray-200">
@@ -1691,19 +1657,6 @@ function UserManagementSettings() {
                 </h4>
 
                 <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Username</label>
-                            <p className="text-caption">Update your display name</p>
-                        </div>
-                        <input
-                            type="text"
-                            placeholder="Enter username"
-                            className="w-48 input-native"
-                            style={{ background: 'var(--color-surface-secondary)' }}
-                        />
-                    </div>
-
                     <div className="flex justify-between items-center">
                         <div>
                             <label className="font-medium text-body">Theme Preference</label>
@@ -1810,156 +1763,13 @@ function UserManagementSettings() {
                         </div>
                     </div>
 
-                    <div className="p-4 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div className="flex justify-between items-center">
-                            <div className="flex items-center space-x-3">
-                                <div className="w-3 h-3 rounded-full" style={{ background: 'var(--color-text-tertiary)' }}></div>
-                                <div>
-                                    <p className="font-medium text-body">Previous Session</p>
-                                    <p className="text-caption">Ended: 2 hours ago</p>
-                                </div>
-                            </div>
-                            <span className="px-2 py-1 rounded text-caption" style={{ background: 'var(--color-text-tertiary)', color: 'white' }}>Expired</span>
-                        </div>
-                    </div>
-
-                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
-                        <button className="flex items-center px-4 py-2 space-x-2 btn-secondary hover-lift focus-native">
-                            <Trash2 className="w-4 h-4" />
-                            <span>Clear All Sessions</span>
-                        </button>
-                    </div>
+                    
                 </div>
             </div>
 
             {/* Vault File Access */}
-            <div className="p-6 glass-card">
-                <h4 className="flex items-center mb-4 space-x-2 text-heading">
-                    <Key className="w-4 h-4" />
-                    <span>Vault File Access</span>
-                </h4>
-
-                <div className="space-y-4">
-                    <div className="p-4 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <p className="font-medium text-body">Vault Location</p>
-                                <p className="font-mono text-xs text-caption">~/Library/Application Support/KeyKeeper/vault.json</p>
-                            </div>
-                            <div className="flex space-x-2">
-                                <button className="flex items-center px-3 py-1 space-x-1 text-sm btn-secondary hover-lift focus-native">
-                                    <Download className="w-3 h-3" />
-                                    <span>Open Folder</span>
-                                </button>
-                                <button className="flex items-center px-3 py-1 space-x-1 text-sm btn-secondary hover-lift focus-native">
-                                    <Code className="w-3 h-3" />
-                                    <span>View File</span>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div className="p-4 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <p className="font-medium text-body">Backup Location</p>
-                                <p className="font-mono text-xs text-caption">~/Library/Application Support/KeyKeeper/backups/</p>
-                            </div>
-                            <button className="flex items-center px-3 py-1 space-x-1 text-sm btn-secondary hover-lift focus-native">
-                                <Download className="w-3 h-3" />
-                                <span>Open Folder</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="p-4 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <p className="font-medium text-body">Logs Location</p>
-                                <p className="font-mono text-xs text-caption">~/Library/Application Support/KeyKeeper/logs/</p>
-                            </div>
-                            <button className="flex items-center px-3 py-1 space-x-1 text-sm btn-secondary hover-lift focus-native">
-                                <Download className="w-3 h-3" />
-                                <span>Open Folder</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(0, 0, 0, 0.1)' }}>
-                        <div className="flex items-center space-x-2">
-                            <Info className="w-4 h-4" style={{ color: 'var(--color-accent)' }} />
-                            <p className="text-caption">All files are stored locally on your device for maximum security</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Advanced Controls */}
-            <div className="p-6 glass-card">
-                <h4 className="flex items-center mb-4 space-x-2 text-heading">
-                    <SettingsIcon className="w-4 h-4" />
-                    <span>Advanced Controls</span>
-                </h4>
-
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Export Vault Data</label>
-                            <p className="text-caption">Create a backup of your vault in JSON format</p>
-                        </div>
-                        <button className="flex items-center px-4 py-2 space-x-2 btn-secondary hover-lift focus-native">
-                            <Upload className="w-4 h-4" />
-                            <span>Export</span>
-                        </button>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Import Vault Data</label>
-                            <p className="text-caption">Restore vault from a backup file</p>
-                        </div>
-                        <button className="flex items-center px-4 py-2 space-x-2 btn-secondary hover-lift focus-native">
-                            <Download className="w-4 h-4" />
-                            <span>Import</span>
-                        </button>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Verify Vault Integrity</label>
-                            <p className="text-caption">Check vault file for corruption or issues</p>
-                        </div>
-                        <button className="flex items-center px-4 py-2 space-x-2 btn-secondary hover-lift focus-native">
-                            <CheckCircle2 className="w-4 h-4" />
-                            <span>Verify</span>
-                        </button>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Compact Database</label>
-                            <p className="text-caption">Optimize vault file size and performance</p>
-                        </div>
-                        <button className="flex items-center px-4 py-2 space-x-2 btn-secondary hover-lift focus-native">
-                            <Zap className="w-4 h-4" />
-                            <span>Compact</span>
-                        </button>
-                    </div>
-
-                    <div className="pt-3 border-t" style={{ borderColor: 'rgba(255, 165, 0, 0.2)' }}>
-                        <div className="flex justify-between items-center">
-                            <div>
-                                <label className="font-medium text-body" style={{ color: 'var(--color-warning)' }}>Reset Application</label>
-                                <p className="text-caption">⚠️ Reset all settings to default (keeps vault data)</p>
-                            </div>
-                            <button className="flex items-center px-4 py-2 space-x-2 btn-warning hover-lift focus-native">
-                                <SettingsIcon className="w-4 h-4" />
-                                <span>Reset App</span>
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            
+            
 
             {/* Storage & Data Management */}
             <div className="p-6 glass-card">
@@ -2268,103 +2078,3 @@ function SystemInfoSettings() {
     )
 }
 
-// Developer Tools Settings Component
-function DeveloperToolsSettings() {
-    const [debugMode, setDebugMode] = useState(false)
-    const [apiLogs, setApiLogs] = useState<any[]>([])
-
-    useEffect(() => {
-        // Mock API logs
-        setApiLogs([
-            { method: 'GET', endpoint: '/api/keys', status: 200, time: '12:34:56' },
-            { method: 'POST', endpoint: '/api/keys', status: 201, time: '12:35:12' },
-            { method: 'PUT', endpoint: '/api/keys/123', status: 200, time: '12:35:45' }
-        ])
-    }, [])
-
-    return (
-        <div className="space-y-6">
-            {/* Debug Tools */}
-            <div className="p-6 glass-card">
-                <h4 className="flex items-center mb-4 space-x-2 text-heading">
-                    <Code className="w-4 h-4" />
-                    <span>Debug Tools</span>
-                </h4>
-                <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Debug Mode</label>
-                            <p className="text-caption">Enable detailed logging and debug info</p>
-                        </div>
-                        <label className="inline-flex relative items-center cursor-pointer">
-                            <input
-                                type="checkbox"
-                                checked={debugMode}
-                                onChange={(e) => setDebugMode(e.target.checked)}
-                                className="sr-only peer"
-                            />
-                            <div className={`toggle-native ${debugMode ? 'active' : ''}`}></div>
-                        </label>
-                    </div>
-
-                    <div className="flex justify-between items-center">
-                        <div>
-                            <label className="font-medium text-body">Export Debug Info</label>
-                            <p className="text-caption">Generate debug report for troubleshooting</p>
-                        </div>
-                        <button className="px-4 py-2 btn-secondary hover-lift focus-native">
-                            Export
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {/* API Logs */}
-            <div className="p-6 glass-card">
-                <h4 className="flex items-center mb-4 space-x-2 text-heading">
-                    <Bell className="w-4 h-4" />
-                    <span>API Logs</span>
-                </h4>
-                <div className="space-y-2">
-                    {apiLogs.map((log, index) => (
-                        <div key={index} className="p-3 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                            <div className="flex justify-between items-center">
-                                <div className="flex items-center space-x-3">
-                                    <span className={`text-xs px-2 py-1 rounded font-mono ${log.method === 'GET' ? 'bg-blue-100 text-blue-800' :
-                                            log.method === 'POST' ? 'bg-green-100 text-green-800' :
-                                                'bg-orange-100 text-orange-800'
-                                        }`}>
-                                        {log.method}
-                                    </span>
-                                    <span className="font-mono text-sm text-body">{log.endpoint}</span>
-                                </div>
-                                <div className="flex items-center space-x-2">
-                                    <span className={`text-xs px-2 py-1 rounded ${log.status < 300 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                                        }`}>
-                                        {log.status}
-                                    </span>
-                                    <span className="text-caption">{log.time}</span>
-                                </div>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            {/* Console */}
-            <div className="p-6 glass-card">
-                <h4 className="flex items-center mb-4 space-x-2 text-heading">
-                    <Monitor className="w-4 h-4" />
-                    <span>Console</span>
-                </h4>
-                <div className="p-4 glass-card" style={{ background: 'var(--color-surface-secondary)' }}>
-                    <div className="space-y-1 font-mono text-sm">
-                        <div className="text-caption">[12:34:56] KeyKeeper initialized</div>
-                        <div className="text-caption">[12:35:12] Vault loaded successfully</div>
-                        <div className="text-caption">[12:35:45] VSCode integration active</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
