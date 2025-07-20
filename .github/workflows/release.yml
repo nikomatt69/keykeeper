@@ -24,14 +24,14 @@ jobs:
       - name: Install VSCE
         run: npm install -g @vscode/vsce
 
-      - name: Install VSCode extension dependencies
-        working-directory: extensions/vscode
-        run: npm ci
+      - name: Install dependencies
+        run: yarn install --network-timeout 1000000
 
       - name: Build VSCode extension
-        working-directory: extensions/vscode
         run: |
-          vsce package --out keykeeper-vscode-${{ github.ref_name }}.vsix
+          yarn vscode:install
+          yarn vscode:compile
+          cd extensions/vscode && vsce package --out keykeeper-vscode-${{ github.ref_name }}.vsix
 
       - name: Upload VSCode extension artifact
         uses: actions/upload-artifact@v4
