@@ -73,12 +73,16 @@ export default function ApiKeyDetail() {
 
   const handleDecryptSubmit = async () => {
     if (!masterPassword.trim()) return
+    if (!selectedKey) {
+      console.error('No key selected')
+      return
+    }
 
     setIsDecrypting(true)
     try {
       const { invoke } = await import('@tauri-apps/api/core')
       const decrypted = await invoke<string>('get_decrypted_api_key', {
-        keyId: selectedKey!.id,
+        keyId: selectedKey.id,
         masterPassword
       })
 
@@ -87,6 +91,8 @@ export default function ApiKeyDetail() {
       setMasterPassword('')
     } catch (error) {
       console.error('Failed to decrypt API key:', error)
+      // TODO: Replace with proper toast notification
+      // For now, using alert as a fallback
       alert('Failed to decrypt API key. Please check your master password.')
     } finally {
       setIsDecrypting(false)
@@ -117,7 +123,8 @@ export default function ApiKeyDetail() {
     const keyToShow = decryptedKey || key
 
     if (isVisible) return keyToShow
-    return keyToShow?.slice(0, 8) + '•'.repeat(Math.max(0, keyToShow?.length || - 12)) + keyToShow?.slice(-4)
+    // Show a fixed number of dots, e.g., 16 (identico alla lista)
+    return '•'.repeat(16)
   }
 
 

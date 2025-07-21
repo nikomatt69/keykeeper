@@ -229,7 +229,7 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
         onDrop={handleDrop}
         onClick={handleFileClick}
         className={`
-          relative border-2 border-dashed rounded-lg p-8 text-center transition-all duration-200 cursor-pointer
+          relative border-2 border-dashed rounded-lg p-4 text-center transition-all duration-200 cursor-pointer
           ${isDragOver
             ? 'bg-blue-50 border-blue-500 dark:bg-blue-900/20'
             : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
@@ -255,13 +255,13 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
         </AnimatePresence>
 
         {!isProcessing && !importResult && (
-          <div className="space-y-4">
-            <DocumentIcon className="mx-auto w-12 h-12 text-gray-400" />
+          <div className="space-y-3">
+            <DocumentIcon className="mx-auto w-8 h-8 text-gray-400" />
             <div>
-              <p className="text-lg font-medium text-gray-900 dark:text-gray-100">
+              <p className="text-base font-medium text-gray-900 dark:text-gray-100">
                 Drag .env files here or click to browse
               </p>
-              <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Supports .env, .env.local, .env.development, .env.production, .env.staging, .env.test
               </p>
               <button
@@ -269,12 +269,12 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
                   e.stopPropagation()
                   handleFileClick(e)
                 }}
-                className="px-4 py-2 mt-3 text-sm font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
+                className="px-3 py-1.5 mt-2 text-xs font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
               >
                 Browse Files
               </button>
             </div>
-            <div className="space-y-1 text-xs text-gray-400">
+            <div className="space-y-0.5 text-xs text-gray-400">
               <p>• Automatically detects project from path</p>
               <p>• Imports API keys and secret variables</p>
               <p>• Activates VSCode extension automatically</p>
@@ -284,13 +284,13 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
         )}
 
         {isProcessing && (
-          <div className="space-y-4">
+          <div className="space-y-3">
             <motion.div
               animate={{ rotate: 360 }}
               transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-              className="mx-auto w-12 h-12 rounded-full border-4 border-blue-500 border-t-transparent"
+              className="mx-auto w-8 h-8 rounded-full border-4 border-blue-500 border-t-transparent"
             />
-            <p className="text-lg font-medium">Processing .env file...</p>
+            <p className="text-base font-medium">Processing .env file...</p>
           </div>
         )}
       </motion.div>
@@ -302,28 +302,28 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="p-6 mt-6 bg-white rounded-lg border shadow-lg dark:bg-gray-800"
+            className="p-4 mt-4 bg-white rounded-lg border shadow-lg dark:bg-gray-800"
           >
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-3">
               <div className="flex items-center space-x-3">
-                <FolderIcon className="w-8 h-8 text-blue-500" />
+                <FolderIcon className="w-6 h-6 text-blue-500" />
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">
                     .env file detected
                   </h3>
-                  <p className="text-sm text-gray-500 dark:text-gray-400">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
                     Ready to import API keys
                   </p>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
               <div>
-                <h4 className="mb-3 font-medium text-gray-900 dark:text-gray-100">
+                <h4 className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                   File and Project Information:
                 </h4>
-                <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700">
+                <div className="p-3 bg-gray-50 rounded-lg dark:bg-gray-700">
                   <ProjectPathDisplay
                     envFilePath={importResult.path}
                     projectPath={importResult.project_path}
@@ -335,14 +335,14 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
               </div>
 
               <div>
-                <h4 className="mb-2 font-medium text-gray-900 dark:text-gray-100">
+                <h4 className="mb-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                   Variables found ({importResult.keys.length}):
                 </h4>
-                <div className="overflow-y-auto space-y-1 max-h-40">
+                <div className="overflow-y-auto space-y-1 max-h-32">
                   {importResult.keys.map((key, index) => (
                     <div
                       key={index}
-                      className={`flex items-center justify-between p-2 rounded text-sm ${key.is_secret
+                      className={`flex items-center justify-between p-1.5 rounded text-xs ${key.is_secret
                         ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
                         : 'bg-gray-50 dark:bg-gray-700'
                         }`}
@@ -359,16 +359,16 @@ export default function DragDropZone({ onFileImport }: DragDropZoneProps) {
                 </div>
               </div>
 
-              <div className="flex pt-4 space-x-3">
+              <div className="flex pt-3 space-x-3">
                 <button
                   onClick={handleImportKeys}
-                  className="flex-1 px-4 py-2 font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
+                  className="flex-1 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
                 >
                   Import {importResult.keys.filter(k => k.is_secret).length} API Keys
                 </button>
                 <button
                   onClick={() => setImportResult(null)}
-                  className="px-4 py-2 text-gray-600 transition-colors dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                  className="px-3 py-1.5 text-sm text-gray-600 transition-colors dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
                 >
                   Cancel
                 </button>

@@ -7,18 +7,27 @@ import ApiKeyDetail from './ApiKeyDetail'
 import AddApiKeyModal from './modals/AddApiKeyModal'
 import EditApiKeyModal from './modals/EditApiKeyModal'
 import DeleteApiKeyModal from './modals/DeleteApiKeyModal'
+import ProjectModal from './modals/ProjectModal'
+import AssignKeysModal from './modals/AssignKeysModal'
 import SettingsScreen from './SettingsScreen'
 import DragDropZone from './DragDropZone'
+import ProjectDashboard from './ProjectDashboard'
+import BottomSheet from './BottomSheet'
 
 export default function MainLayout() {
   const {
     selectedKey,
+    selectedProject,
     sidebarCollapsed,
     loadApiKeys,
     showAddModal,
     showEditModal,
     showDeleteModal,
-    showSettingsModal
+    showSettingsModal,
+    showProjectModal,
+    showAssignKeysModal,
+    setShowProjectModal,
+    setShowAssignKeysModal
   } = useAppStore()
 
   useEffect(() => {
@@ -57,6 +66,27 @@ export default function MainLayout() {
             <ApiKeyList />
 
             {/* Drag & Drop Zone - Only show when no keys or as help section */}
+            <BottomSheet
+              isOpen={!!selectedProject}
+              onClose={() => {
+                // Close functionality via X button - we need to add a clearSelectedProject method to store
+                // For now, this will only work via the X button since we removed the backdrop
+                console.log('Close project dashboard')
+              }}
+              title={selectedProject?.name || 'Project Dashboard'}
+              subtitle={selectedProject ? `Created ${new Date(selectedProject.created_at).toLocaleDateString()}` : undefined}
+              collapsible={true}
+              defaultHeight="60vh"
+              maxHeight="85vh"
+            >
+              {selectedProject && (
+                <ProjectDashboard
+                  project={selectedProject}
+                  onEdit={() => setShowProjectModal(true)}
+                  onAssignKeys={() => setShowAssignKeysModal(true)}
+                />
+              )}
+            </BottomSheet>
 
           </div>
 
@@ -75,6 +105,8 @@ export default function MainLayout() {
             <ApiKeyDetail />
           </motion.div>
         )}
+
+
       </div>
 
       {/* Modals */}
@@ -82,6 +114,21 @@ export default function MainLayout() {
       {showEditModal && <EditApiKeyModal />}
       {showDeleteModal && <DeleteApiKeyModal />}
       {showSettingsModal && <SettingsScreen />}
+      {showProjectModal && (
+        <ProjectModal
+          isOpen={showProjectModal}
+          onClose={() => setShowProjectModal(false)}
+          project={selectedProject}
+        />
+      )}
+      {showAssignKeysModal && (
+        <AssignKeysModal
+          isOpen={showAssignKeysModal}
+          onClose={() => setShowAssignKeysModal(false)}
+          project={selectedProject}
+        />
+      )}
+
     </div>
   )
 }

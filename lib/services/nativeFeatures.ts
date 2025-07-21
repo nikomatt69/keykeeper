@@ -53,7 +53,7 @@ class NativeFeaturesService {
     }
   }
 
-  // Notifications
+
   async showNotification(options: NotificationOptions): Promise<void> {
     try {
       await TauriAPI.showNotification(options.title, options.body)
@@ -86,6 +86,7 @@ class NativeFeaturesService {
       body: message
     })
   }
+
 
   // Auto-start Management
   async enableAutoStart(): Promise<void> {

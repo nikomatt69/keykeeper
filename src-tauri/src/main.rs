@@ -12,8 +12,8 @@ use log::{error, info, warn};
 use pbkdf2::pbkdf2_hmac;
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use sha2::{Digest, Sha256};
+ 
+use sha2::Sha256;
 use std::collections::HashMap;
 use std::fs;
 use std::io::Error;
@@ -21,9 +21,8 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::menu::{MenuBuilder, MenuItemBuilder};
-use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::tray::TrayIconBuilder;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_updater::UpdaterExt;
 use tauri_plugin_keyring::KeyringExt;
@@ -37,7 +36,6 @@ use hyper::service::service_fn;
 use http_body_util::{BodyExt, Full};
 use hyper_util::rt::TokioIo;
 use std::convert::Infallible;
-use std::net::SocketAddr;
 use tokio::net::TcpListener;
 extern crate keyring;
 extern crate whoami;
@@ -357,8 +355,9 @@ pub struct AppState {
 
 
 fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
-    let salt = b"keykeeper_salt_v1"; // Fixed salt for simplicity
-    let key_bytes = derive_key_from_password(password, salt);
+    let mut salt = [0u8; 16];
+    OsRng.fill_bytes(&mut salt);
+    let key_bytes = derive_key_from_password(password, &salt);
     let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
     let cipher = Aes256Gcm::new(key);
     
@@ -369,26 +368,27 @@ fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
     let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
         .map_err(|e| format!("Encryption failed: {}", e))?;
     
-    // Combine nonce + ciphertext and encode as base64
-    let mut combined = nonce_bytes.to_vec();
+    // Combine salt + nonce + ciphertext and encode as base64
+    let mut combined = salt.to_vec();
+    combined.extend_from_slice(&nonce_bytes);
     combined.extend_from_slice(&ciphertext);
     Ok(general_purpose::STANDARD.encode(combined))
 }
 
 fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
-    let salt = b"keykeeper_salt_v1"; // Same fixed salt
-    let key_bytes = derive_key_from_password(password, salt);
-    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
-    let cipher = Aes256Gcm::new(key);
-    
     let combined = general_purpose::STANDARD.decode(encrypted)
         .map_err(|e| format!("Base64 decode failed: {}", e))?;
     
-    if combined.len() < 12 {
+    if combined.len() < 28 { // 16 (salt) + 12 (nonce)
         return Err("Invalid encrypted data".to_string());
     }
     
-    let (nonce_bytes, ciphertext) = combined.split_at(12);
+    let (salt, rest) = combined.split_at(16);
+    let (nonce_bytes, ciphertext) = rest.split_at(12);
+    
+    let key_bytes = derive_key_from_password(password, salt);
+    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
+    let cipher = Aes256Gcm::new(key);
     let nonce = Nonce::from_slice(nonce_bytes);
     
     let plaintext = cipher.decrypt(nonce, ciphertext)
@@ -403,13 +403,113 @@ async fn unlock_vault(password: String, state: State<'_, AppState>) -> Result<bo
     let vault_guard = state.vault.lock().await;
 
     if let Some(stored_hash) = &vault_guard.master_password_hash {
+        info!("Attempting to verify password against stored hash");
+        info!("Stored hash length: {}, starts with: {}", stored_hash.len(), &stored_hash[..std::cmp::min(10, stored_hash.len())]);
+        info!("Password length: {}", password.len());
+        
         // Use bcrypt for secure password verification
-        let is_valid = verify(&password, stored_hash).map_err(|e| e.to_string())?;
+        let is_valid = match verify(&password, stored_hash) {
+            Ok(valid) => {
+                info!("Bcrypt verification successful: {}", valid);
+                valid
+            },
+            Err(e) => {
+                error!("Bcrypt verification failed: {}", e);
+                error!("This usually means the stored hash is not a valid bcrypt hash");
+                
+                // Fallback: check if password was stored in plain text (legacy support)
+                if stored_hash == &password {
+                    warn!("Password was stored in plain text! Will migrate to bcrypt hash...");
+                    // We'll migrate to bcrypt hash after unlock succeeds
+                    true
+                } else {
+                    false
+                }
+            }
+        };
+        info!("Final password verification result: {}", is_valid);
         if is_valid {
-            drop(vault_guard);
-            *state.is_unlocked.lock().await = true;
-            log_audit_event(&state, "unlock_vault", "vault", None, true, None).await;
-            Ok(true)
+            // Check if we need to migrate plain text password to bcrypt hash
+            let needs_migration = stored_hash == &password;
+            
+            // Check if vault is encrypted (has placeholder encryption key)
+            let needs_decryption = vault_guard.encryption_key.as_ref()
+                .map_or(false, |key| key == "[ENCRYPTED]");
+            
+            if needs_decryption {
+                // Drop the guard to avoid deadlock before calling decrypt function
+                drop(vault_guard);
+                
+                // Decrypt and reload the actual vault data
+                match decrypt_vault_with_password(&state.vault_path, &password) {
+                    Ok(decrypted_vault) => {
+                        // Replace the vault in memory with the decrypted version
+                        let mut vault_guard = state.vault.lock().await;
+                        *vault_guard = decrypted_vault;
+                        drop(vault_guard);
+                        
+                        *state.is_unlocked.lock().await = true;
+                        
+                        // Migrate password hash if needed
+                        if needs_migration {
+                            match hash(&password, DEFAULT_COST) {
+                                Ok(new_hash) => {
+                                    let mut vault_guard = state.vault.lock().await;
+                                    vault_guard.master_password_hash = Some(new_hash);
+                                    drop(vault_guard);
+                                    if let Err(e) = save_vault(&state).await {
+                                        warn!("Failed to save migrated password hash: {}", e);
+                                    }
+                                    log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                                  Some("Vault decrypted, unlocked and password migrated")).await;
+                                },
+                                Err(e) => {
+                                    warn!("Failed to create bcrypt hash during migration: {}", e);
+                                    log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                                  Some("Vault decrypted and unlocked (migration failed)")).await;
+                                }
+                            }
+                        } else {
+                            log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                          Some("Vault decrypted and unlocked")).await;
+                        }
+                        Ok(true)
+                    },
+                    Err(e) => {
+                        log_audit_event(&state, "unlock_vault", "vault", None, false, 
+                                      Some(&format!("Failed to decrypt vault: {}", e))).await;
+                        Err(format!("Failed to decrypt vault: {}", e))
+                    }
+                }
+            } else {
+                // Vault is not encrypted, just unlock it
+                drop(vault_guard);
+                *state.is_unlocked.lock().await = true;
+                
+                // Migrate password hash if needed
+                if needs_migration {
+                    match hash(&password, DEFAULT_COST) {
+                        Ok(new_hash) => {
+                            let mut vault_guard = state.vault.lock().await;
+                            vault_guard.master_password_hash = Some(new_hash);
+                            drop(vault_guard);
+                            if let Err(e) = save_vault(&state).await {
+                                warn!("Failed to save migrated password hash: {}", e);
+                            }
+                            log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                          Some("Vault unlocked and password migrated")).await;
+                        },
+                        Err(e) => {
+                            warn!("Failed to create bcrypt hash during migration: {}", e);
+                            log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                          Some("Vault unlocked (migration failed)")).await;
+                        }
+                    }
+                } else {
+                    log_audit_event(&state, "unlock_vault", "vault", None, true, None).await;
+                }
+                Ok(true)
+            }
         } else {
             log_audit_event(
                 &state,
@@ -423,17 +523,59 @@ async fn unlock_vault(password: String, state: State<'_, AppState>) -> Result<bo
             Ok(false)
         }
     } else {
-        // Master password not set, this command should not be called in this state
-        log_audit_event(
-            &state,
-            "unlock_vault",
-            "vault",
-            None,
-            false,
-            Some("Master password not set"),
-        )
-        .await;
-        Err("Master password not set. Please set it first.".to_string())
+        // Master password not set, check if this is a legacy vault that needs migration
+        info!("No master password hash found, checking for legacy vault");
+        
+        // For legacy vaults without bcrypt hash, try to decrypt directly with password
+        if vault_guard.encryption_key.is_some() && 
+           vault_guard.encryption_key.as_ref().unwrap() != "[ENCRYPTED]" {
+            // This might be a legacy encrypted vault, try to decrypt
+            drop(vault_guard);
+            match decrypt_vault_with_password(&state.vault_path, &password) {
+                Ok(decrypted_vault) => {
+                    // Migration: set proper bcrypt hash for future unlocks
+                    let password_hash = hash(&password, DEFAULT_COST).map_err(|e| e.to_string())?;
+                    
+                    let mut vault_guard = state.vault.lock().await;
+                    *vault_guard = decrypted_vault;
+                    vault_guard.master_password_hash = Some(password_hash);
+                    drop(vault_guard);
+                    
+                    // Save the migrated vault
+                    save_vault(&state).await?;
+                    
+                    *state.is_unlocked.lock().await = true;
+                    log_audit_event(&state, "unlock_vault", "vault", None, true, 
+                                  Some("Legacy vault migrated and unlocked")).await;
+                    Ok(true)
+                },
+                Err(_) => {
+                    // Not a legacy vault or wrong password
+                    log_audit_event(
+                        &state,
+                        "unlock_vault", 
+                        "vault",
+                        None,
+                        false,
+                        Some("Master password not set"),
+                    )
+                    .await;
+                    Err("Master password not set. Please set it first.".to_string())
+                }
+            }
+        } else {
+            // No encryption key at all, master password not set
+            log_audit_event(
+                &state,
+                "unlock_vault",
+                "vault",
+                None,
+                false,
+                Some("Master password not set"),
+            )
+            .await;
+            Err("Master password not set. Please set it first.".to_string())
+        }
     }
 }
 
@@ -501,11 +643,13 @@ async fn set_master_password(password: String, state: State<'_, AppState>) -> Re
     let mut vault_guard = state.vault.lock().await;
     vault_guard.master_password_hash = Some(password_hash);
 
-    // Generate encryption key and salt for AES-256-GCM
-    let mut key_bytes = [0u8; 32]; // 256 bits
+    // Generate salt for key derivation
     let mut salt_bytes = [0u8; 16]; // 128 bits
-    OsRng.fill_bytes(&mut key_bytes);
+    
     OsRng.fill_bytes(&mut salt_bytes);
+
+    // Derive encryption key from password and salt using PBKDF2
+    let key_bytes = derive_key_from_password(&password, &salt_bytes);
 
     vault_guard.encryption_key = Some(general_purpose::STANDARD.encode(&key_bytes));
     vault_guard.salt = Some(general_purpose::STANDARD.encode(&salt_bytes));
@@ -654,7 +798,7 @@ async fn get_api_keys(state: State<'_, AppState>) -> Result<Vec<ApiKey>, String>
     
     if !is_unlocked {
         // If vault is locked but we have metadata, return keys with encrypted placeholders
-        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "[]") {
+        if vault_guard.encryption_key.as_ref().map_or(false, |key| key == "[ENCRYPTED]") {
             // Return API keys with metadata but encrypted key values
             Ok(vault_guard.keys.values().cloned().collect())
         } else {
@@ -828,15 +972,24 @@ async fn handle_hyper_request(
 ) -> Result<Response<Full<bytes::Bytes>>, Infallible> {
     let method = req.method();
     let path = req.uri().path();
-    let query = req.uri().query().unwrap_or("");
+    let _query = req.uri().query().unwrap_or("");
+    
+    // Create temporary AppState for Tauri command calls
+    let _app_state = AppState {
+        vault: vault.clone(),
+        vault_path: vault_path.clone(),
+        is_unlocked: is_unlocked.clone(),
+        vscode_server_handle: Arc::new(Mutex::new(None)),
+        vscode_server_running: Arc::new(AtomicBool::new(false)),
+    };
     
     // Get headers
     let headers = req.headers();
-    let auth_header = headers.get("authorization").and_then(|h| h.to_str().ok());
-    let user_agent = headers.get("user-agent").and_then(|h| h.to_str().ok()).unwrap_or("");
+    let _auth_header = headers.get("authorization").and_then(|h| h.to_str().ok());
+    let _user_agent = headers.get("user-agent").and_then(|h| h.to_str().ok()).unwrap_or("");
     
     // Security headers
-    let security_headers = "Content-Type: application/json\r\n\
+    let _security_headers = "Content-Type: application/json\r\n\
                            X-Content-Type-Options: nosniff\r\n\
                            X-Frame-Options: DENY\r\n\
                            X-XSS-Protection: 1; mode=block\r\n\
@@ -1123,6 +1276,365 @@ async fn handle_hyper_request(
                 .header("Content-Type", "application/json")
                 .body(Full::new(bytes::Bytes::from(response.to_string())))
                 .unwrap())
+        }
+
+        // ===============================
+        //  VSCODE AUTO-SYNC HTTP ENDPOINTS
+        // ===============================
+        
+        (&Method::POST, "/api/keys/sync-to-env") => {
+            if !*is_unlocked.lock().await {
+                let error_response = serde_json::json!({"error": "Vault is locked"});
+                return Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let body = req.into_body();
+            let body_bytes = match body.collect().await {
+                Ok(collected) => collected.to_bytes(),
+                Err(_) => {
+                    let error_response = serde_json::json!({"error": "Cannot read request body"});
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap());
+                }
+            };
+
+            let body_str = String::from_utf8_lossy(&body_bytes);
+            if let Ok(request_data) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                let key_id = request_data["keyId"].as_str().unwrap_or("");
+                let project_path = request_data["projectPath"].as_str().unwrap_or("");
+                let env_file_name = request_data["envFileName"].as_str();
+
+                // Implement sync_key_to_env_file logic inline
+                let sync_result = {
+                    let vault_guard = vault.lock().await;
+                    
+                    // Find the API key
+                    if let Some(api_key) = vault_guard.keys.get(key_id) {
+                        // Determine the .env file path
+                        let env_file = env_file_name.unwrap_or(".env");
+                        let env_file_path = format!("{}/{}", project_path, env_file);
+
+                        // Check if key already exists in .env file
+                        if let Ok(env_content) = std::fs::read_to_string(&env_file_path) {
+                            let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+                            if env_content.contains(&var_name) {
+                                Ok(format!("Key {} already exists in {}", var_name, env_file))
+                            } else {
+                                // Generate environment variable name and append to .env file
+                                let env_line = format!("{}={}\n", var_name, api_key.key);
+                                
+                                match std::fs::OpenOptions::new()
+                                    .create(true)
+                                    .append(true)
+                                    .open(&env_file_path)
+                                {
+                                    Ok(mut file) => {
+                                        use std::io::Write;
+                                        match file.write_all(env_line.as_bytes()) {
+                                            Ok(_) => Ok(format!("Successfully added {} to {}", var_name, env_file)),
+                                            Err(e) => Err(format!("Failed to write to .env file: {}", e))
+                                        }
+                                    },
+                                    Err(e) => Err(format!("Failed to open .env file: {}", e))
+                                }
+                            }
+                        } else {
+                            // Create new .env file
+                            let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+                            let env_line = format!("{}={}\n", var_name, api_key.key);
+                            
+                            match std::fs::write(&env_file_path, env_line) {
+                                Ok(_) => Ok(format!("Successfully created {} and added {}", env_file, var_name)),
+                                Err(e) => Err(format!("Failed to create .env file: {}", e))
+                            }
+                        }
+                    } else {
+                        Err("API key not found".to_string())
+                    }
+                };
+
+                match sync_result {
+                    Ok(message) => {
+                        let response = serde_json::json!({"success": true, "message": message});
+                        Ok(Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(bytes::Bytes::from(response.to_string())))
+                            .unwrap())
+                    },
+                    Err(error) => {
+                        let error_response = serde_json::json!({"success": false, "message": error});
+                        Ok(Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                            .unwrap())
+                    }
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::GET, "/api/keys/check-in-env") => {
+            if !*is_unlocked.lock().await {
+                let error_response = serde_json::json!({"error": "Vault is locked"});
+                return Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let url = req.uri();
+            let query = url.query().unwrap_or("");
+            let mut key_id = "";
+            let mut project_path = "";
+            let mut env_file_name: Option<String> = None;
+
+            for param in query.split('&') {
+                let parts: Vec<&str> = param.split('=').collect();
+                if parts.len() == 2 {
+                    match parts[0] {
+                        "keyId" => key_id = parts[1],
+                        "projectPath" => project_path = parts[1],
+                        "envFileName" => env_file_name = Some(parts[1].to_string()),
+                        _ => {}
+                    }
+                }
+            }
+
+            // Implement check_key_in_env_file logic inline
+            let check_result = {
+                let vault_guard = vault.lock().await;
+                
+                // Find the API key
+                if let Some(api_key) = vault_guard.keys.get(key_id) {
+                    // Determine the .env file path
+                    let env_file = env_file_name.unwrap_or(".env".to_string());
+                    let env_file_path = format!("{}/{}", project_path, env_file);
+
+                    // Check if .env file exists and contains the key
+                    match std::fs::read_to_string(&env_file_path) {
+                        Ok(env_content) => {
+                            let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+                            Ok(env_content.contains(&var_name))
+                        },
+                        Err(_) => Ok(false) // File doesn't exist
+                    }
+                } else {
+                    Err("API key not found".to_string())
+                }
+            };
+
+            match check_result {
+                Ok(exists) => {
+                    let response = serde_json::json!({"exists": exists});
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(response.to_string())))
+                        .unwrap())
+                },
+                Err(error) => {
+                    let error_response = serde_json::json!({"error": error});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            }
+        }
+
+        (&Method::GET, "/api/projects/env-files") => {
+            if !*is_unlocked.lock().await {
+                let error_response = serde_json::json!({"error": "Vault is locked"});
+                return Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let url = req.uri();
+            let query = url.query().unwrap_or("");
+            let mut project_path = "";
+
+            for param in query.split('&') {
+                let parts: Vec<&str> = param.split('=').collect();
+                if parts.len() == 2 && parts[0] == "projectPath" {
+                    project_path = parts[1];
+                }
+            }
+
+            // Implement get_env_file_suggestions logic inline
+            let suggestions_result: Result<Vec<String>, String> = {
+                let mut env_files = Vec::new();
+                
+                // Look for common .env files
+                let common_env_files = vec![
+                    ".env",
+                    ".env.local",
+                    ".env.development",
+                    ".env.staging", 
+                    ".env.production",
+                    ".env.example"
+                ];
+
+                for env_file in common_env_files {
+                    let env_path = format!("{}/{}", project_path, env_file);
+                    if std::path::Path::new(&env_path).exists() {
+                        env_files.push(env_file.to_string());
+                    }
+                }
+
+                Ok(env_files)
+            };
+
+            match suggestions_result {
+                Ok(env_files) => {
+                    let response = serde_json::json!({"envFiles": env_files});
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(response.to_string())))
+                        .unwrap())
+                },
+                Err(error) => {
+                    let error_response = serde_json::json!({"error": error});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            }
+        }
+
+        (&Method::POST, "/api/workspace/auto-sync") => {
+            if !*is_unlocked.lock().await {
+                let error_response = serde_json::json!({"error": "Vault is locked"});
+                return Ok(Response::builder()
+                    .status(StatusCode::UNAUTHORIZED)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let body = req.into_body();
+            let body_bytes = match body.collect().await {
+                Ok(collected) => collected.to_bytes(),
+                Err(_) => {
+                    let error_response = serde_json::json!({"error": "Cannot read request body"});
+                    return Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap());
+                }
+            };
+
+            let body_str = String::from_utf8_lossy(&body_bytes);
+            if let Ok(request_data) = serde_json::from_str::<serde_json::Value>(&body_str) {
+                let workspace_path = request_data["workspacePath"].as_str().unwrap_or("");
+
+                // Implement auto_sync_workspace_env_files logic inline
+                let sync_result = {
+                    let vault_guard = vault.lock().await;
+                    let mut synced_count = 0;
+                    let mut errors = Vec::new();
+
+                    // Find all .env files in the workspace
+                    let env_files = vec![
+                        format!("{}/.env", workspace_path),
+                        format!("{}/.env.local", workspace_path),
+                        format!("{}/.env.development", workspace_path),
+                        format!("{}/.env.staging", workspace_path),
+                        format!("{}/.env.production", workspace_path),
+                    ];
+
+                    for env_file_path in env_files {
+                        if std::path::Path::new(&env_file_path).exists() {
+                            // Read the .env file and check for missing keys
+                            match std::fs::read_to_string(&env_file_path) {
+                                Ok(env_content) => {
+                                    for api_key in vault_guard.keys.values() {
+                                        let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+                                        
+                                        // If this key is not in the .env file, add it
+                                        if !env_content.contains(&var_name) {
+                                            let env_line = format!("{}={}\n", var_name, api_key.key);
+                                            
+                                            match std::fs::OpenOptions::new()
+                                                .create(true)
+                                                .append(true)
+                                                .open(&env_file_path)
+                                            {
+                                                Ok(mut file) => {
+                                                    use std::io::Write;
+                                                    match file.write_all(env_line.as_bytes()) {
+                                                        Ok(_) => synced_count += 1,
+                                                        Err(e) => errors.push(format!("Failed to write to {}: {}", env_file_path, e))
+                                                    }
+                                                },
+                                                Err(e) => errors.push(format!("Failed to open {}: {}", env_file_path, e))
+                                            }
+                                        }
+                                    }
+                                },
+                                Err(e) => errors.push(format!("Failed to read {}: {}", env_file_path, e))
+                            }
+                        }
+                    }
+
+                    if errors.is_empty() {
+                        Ok(format!("Successfully synced {} API keys to workspace .env files", synced_count))
+                    } else if synced_count > 0 {
+                        Ok(format!("Synced {} API keys with {} errors: {}", synced_count, errors.len(), errors.join(", ")))
+                    } else {
+                        Err(format!("Failed to sync workspace: {}", errors.join(", ")))
+                    }
+                };
+
+                match sync_result {
+                    Ok(message) => {
+                        let response = serde_json::json!({"success": true, "message": message});
+                        Ok(Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(bytes::Bytes::from(response.to_string())))
+                            .unwrap())
+                    },
+                    Err(error) => {
+                        let error_response = serde_json::json!({"success": false, "message": error});
+                        Ok(Response::builder()
+                            .status(StatusCode::BAD_REQUEST)
+                            .header("Content-Type", "application/json")
+                            .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                            .unwrap())
+                    }
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
         }
         
         _ => {
@@ -1565,7 +2077,29 @@ async fn is_user_account_created(state: State<'_, AppState>) -> Result<bool, Str
 #[tauri::command]
 async fn is_master_password_set(state: State<'_, AppState>) -> Result<bool, String> {
     let vault_guard = state.vault.lock().await;
-    Ok(vault_guard.master_password_hash.is_some())
+    let has_password_in_memory = vault_guard.master_password_hash.is_some();
+    info!("Checking master password status in memory: {}", has_password_in_memory);
+    
+    // If not found in memory, check metadata file as fallback
+    if !has_password_in_memory {
+        let metadata_path = state.vault_path.with_extension("metadata.json");
+        if metadata_path.exists() {
+            if let Ok(metadata_contents) = fs::read_to_string(&metadata_path) {
+                if let Ok(metadata) = serde_json::from_str::<VaultMetadata>(&metadata_contents) {
+                    let has_password_in_file = metadata.master_password_hash.is_some();
+                    info!("Master password found in metadata file: {}", has_password_in_file);
+                    return Ok(has_password_in_file);
+                }
+            }
+        }
+        info!("No master password hash found anywhere");
+        return Ok(false);
+    }
+    
+    if let Some(ref hash) = vault_guard.master_password_hash {
+        info!("Master password hash exists in memory, length: {}", hash.len());
+    }
+    Ok(has_password_in_memory)
 }
 
 #[tauri::command]
@@ -1719,9 +2253,550 @@ async fn sync_project(project_path: String, state: State<'_, AppState>) -> Resul
     Ok(())
 }
 
+// ===============================
+//  ENHANCED PROJECT CRUD OPERATIONS
+// ===============================
+
+#[tauri::command]
+async fn create_project(
+    name: String,
+    description: Option<String>,
+    path: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Project, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut vault_guard = state.vault.lock().await;
+
+    // Generate unique project ID
+    let project_id = format!("project_{}", get_utc_timestamp_millis());
+    
+    // Use provided path or generate default
+    let project_path = path.unwrap_or_else(|| format!("/projects/{}", &name));
+
+    let project = Project {
+        id: project_id.clone(),
+        name: name.clone(),
+        description,
+        path: project_path,
+        created_at: get_utc_timestamp(),
+        updated_at: get_utc_timestamp(),
+        settings: ProjectSettings {
+            default_environment: "development".to_string(),
+            auto_sync: true,
+            vscode_integration: true,
+            cursor_integration: false,
+            notifications: true,
+        },
+    };
+
+    vault_guard.projects.insert(project_id.clone(), project.clone());
+    drop(vault_guard);
+
+    save_vault(&state).await?;
+    log_audit_event(
+        &state,
+        "create_project",
+        "project",
+        Some(&project_id),
+        true,
+        None,
+    )
+    .await;
+
+    info!("Project created successfully: {} ({})", name, project_id);
+    Ok(project)
+}
+
+#[tauri::command]
+async fn update_project(
+    id: String,
+    name: Option<String>,
+    description: Option<String>,
+    settings: Option<ProjectSettings>,
+    state: State<'_, AppState>,
+) -> Result<Project, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut vault_guard = state.vault.lock().await;
+
+    if let Some(mut project) = vault_guard.projects.get(&id).cloned() {
+        // Update fields if provided
+        if let Some(new_name) = name {
+            project.name = new_name;
+        }
+        if let Some(new_description) = description {
+            project.description = Some(new_description);
+        }
+        if let Some(new_settings) = settings {
+            project.settings = new_settings;
+        }
+        
+        project.updated_at = get_utc_timestamp();
+
+        vault_guard.projects.insert(id.clone(), project.clone());
+        drop(vault_guard);
+
+        save_vault(&state).await?;
+        log_audit_event(
+            &state,
+            "update_project",
+            "project",
+            Some(&id),
+            true,
+            None,
+        )
+        .await;
+
+        info!("Project updated successfully: {}", id);
+        Ok(project)
+    } else {
+        Err("Project not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn delete_project(
+    id: String,
+    reassign_keys_to: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut vault_guard = state.vault.lock().await;
+
+    // Check if project exists
+    if !vault_guard.projects.contains_key(&id) {
+        return Err("Project not found".to_string());
+    }
+
+    // Get the project's path for finding associated keys
+    let project_path = vault_guard.projects.get(&id).unwrap().path.clone();
+
+    // Get the new project path if reassigning
+    let new_project_path = if let Some(new_project_id) = &reassign_keys_to {
+        vault_guard.projects.get(new_project_id).map(|p| p.path.clone())
+    } else {
+        None
+    };
+
+    // Handle keys associated with this project
+    for (key_id, key) in vault_guard.keys.iter_mut() {
+        if key.project_path.as_ref() == Some(&project_path) {
+            if let Some(ref new_path) = new_project_path {
+                // Reassign to another project
+                key.project_path = Some(new_path.clone());
+                info!("Reassigned key {} to project {}", key_id, reassign_keys_to.as_ref().unwrap());
+            } else {
+                // Remove project association
+                key.project_path = None;
+                key.env_file_path = None;
+                key.env_file_name = None;
+                info!("Removed project association from key {}", key_id);
+            }
+        }
+    }
+
+    // Remove project-env associations
+    vault_guard.env_associations.retain(|assoc| assoc.project_path != project_path);
+
+    // Remove the project
+    vault_guard.projects.remove(&id);
+    drop(vault_guard);
+
+    save_vault(&state).await?;
+    log_audit_event(
+        &state,
+        "delete_project",
+        "project",
+        Some(&id),
+        true,
+        None,
+    )
+    .await;
+
+    info!("Project deleted successfully: {}", id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_project_by_id(id: String, state: State<'_, AppState>) -> Result<Project, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+
+    if let Some(project) = vault_guard.projects.get(&id) {
+        Ok(project.clone())
+    } else {
+        Err("Project not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn assign_keys_to_project(
+    project_id: String,
+    key_ids: Vec<String>,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut vault_guard = state.vault.lock().await;
+
+    // Verify project exists
+    let project_path = if let Some(project) = vault_guard.projects.get(&project_id) {
+        project.path.clone()
+    } else {
+        return Err("Project not found".to_string());
+    };
+
+    let mut assigned_count = 0;
+    let mut not_found_keys = Vec::new();
+
+    // Assign keys to project
+    for key_id in key_ids {
+        if let Some(key) = vault_guard.keys.get_mut(&key_id) {
+            key.project_path = Some(project_path.clone());
+            assigned_count += 1;
+        } else {
+            not_found_keys.push(key_id);
+        }
+    }
+
+    drop(vault_guard);
+
+    if assigned_count > 0 {
+        save_vault(&state).await?;
+        log_audit_event(
+            &state,
+            "assign_keys_to_project",
+            "project",
+            Some(&project_id),
+            true,
+            Some(&format!("Assigned {} keys", assigned_count)),
+        )
+        .await;
+    }
+
+    if !not_found_keys.is_empty() {
+        warn!("Some keys not found during assignment: {:?}", not_found_keys);
+        return Err(format!("Some keys not found: {:?}", not_found_keys));
+    }
+
+    info!("Successfully assigned {} keys to project {}", assigned_count, project_id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_keys_by_project(
+    project_id: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<Vec<ApiKey>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+
+    let result = if let Some(project_id) = project_id {
+        // Get keys for specific project
+        if let Some(project) = vault_guard.projects.get(&project_id) {
+            vault_guard
+                .keys
+                .values()
+                .filter(|key| key.project_path.as_ref() == Some(&project.path))
+                .cloned()
+                .collect()
+        } else {
+            return Err("Project not found".to_string());
+        }
+    } else {
+        // Get all keys regardless of project
+        vault_guard.keys.values().cloned().collect()
+    };
+
+    Ok(result)
+}
+
+#[tauri::command]
+async fn get_unassigned_keys(state: State<'_, AppState>) -> Result<Vec<ApiKey>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+
+    let unassigned_keys: Vec<ApiKey> = vault_guard
+        .keys
+        .values()
+        .filter(|key| key.project_path.is_none())
+        .cloned()
+        .collect();
+
+    Ok(unassigned_keys)
+}
+
+#[tauri::command]
+async fn search_keys_in_project(
+    project_id: String,
+    query: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<ApiKey>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+
+    // Verify project exists
+    let project_path = if let Some(project) = vault_guard.projects.get(&project_id) {
+        project.path.clone()
+    } else {
+        return Err("Project not found".to_string());
+    };
+
+    let query_lower = query.to_lowercase();
+    let matching_keys: Vec<ApiKey> = vault_guard
+        .keys
+        .values()
+        .filter(|key| {
+            // Key must belong to the project
+            key.project_path.as_ref() == Some(&project_path) &&
+            // Key must match search query
+            (key.name.to_lowercase().contains(&query_lower) ||
+             key.service.to_lowercase().contains(&query_lower) ||
+             key.description.as_ref().map_or(false, |d| d.to_lowercase().contains(&query_lower)) ||
+             key.tags.iter().any(|tag| tag.to_lowercase().contains(&query_lower)))
+        })
+        .cloned()
+        .collect();
+
+    Ok(matching_keys)
+}
+
+// ===============================
+//  VSCODE AUTO-SYNC FUNCTIONALITY
+// ===============================
+
+#[tauri::command]
+async fn sync_key_to_env_file(
+    key_id: String,
+    project_path: String,
+    env_file_name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+    
+    // Find the API key
+    let api_key = vault_guard.keys.get(&key_id)
+        .ok_or("API key not found".to_string())?;
+
+    // Determine the .env file path
+    let env_file = env_file_name.unwrap_or_else(|| ".env".to_string());
+    let env_file_path = format!("{}/{}", project_path, env_file);
+
+    // Check if key already exists in .env file
+    if let Ok(env_content) = std::fs::read_to_string(&env_file_path) {
+        let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+        if env_content.contains(&var_name) {
+            return Ok(format!("Key {} already exists in {}", var_name, env_file));
+        }
+    }
+
+    // Generate environment variable name
+    let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+    let env_line = format!("{}={}\n", var_name, api_key.key);
+
+    // Append to .env file
+    match std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&env_file_path)
+    {
+        Ok(mut file) => {
+            use std::io::Write;
+            file.write_all(env_line.as_bytes())
+                .map_err(|e| format!("Failed to write to .env file: {}", e))?;
+            
+            info!("Added {} to {}", var_name, env_file_path);
+            
+            // Log audit event
+            drop(vault_guard);
+            log_audit_event(
+                &state,
+                "sync_key_to_env",
+                "api_key",
+                Some(&key_id),
+                true,
+                Some(&format!("Added to {}", env_file_path)),
+            ).await;
+
+            Ok(format!("Successfully added {} to {}", var_name, env_file))
+        },
+        Err(e) => Err(format!("Failed to open .env file: {}", e))
+    }
+}
+
+#[tauri::command]
+async fn check_key_in_env_file(
+    key_id: String,
+    project_path: String,
+    env_file_name: Option<String>,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+    
+    // Find the API key
+    let api_key = vault_guard.keys.get(&key_id)
+        .ok_or("API key not found".to_string())?;
+
+    // Determine the .env file path
+    let env_file = env_file_name.unwrap_or_else(|| ".env".to_string());
+    let env_file_path = format!("{}/{}", project_path, env_file);
+
+    // Check if .env file exists and contains the key
+    match std::fs::read_to_string(&env_file_path) {
+        Ok(env_content) => {
+            let var_name = format!("{}_API_KEY", api_key.service.to_uppercase().replace(" ", "_"));
+            Ok(env_content.contains(&var_name))
+        },
+        Err(_) => Ok(false) // File doesn't exist
+    }
+}
+
+#[tauri::command]
+async fn get_env_file_suggestions(
+    project_path: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<String>, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let mut env_files = Vec::new();
+    
+    // Look for common .env files
+    let common_env_files = vec![
+        ".env",
+        ".env.local",
+        ".env.development",
+        ".env.staging", 
+        ".env.production",
+        ".env.example"
+    ];
+
+    for env_file in common_env_files {
+        let env_path = format!("{}/{}", project_path, env_file);
+        if std::path::Path::new(&env_path).exists() {
+            env_files.push(env_file.to_string());
+        }
+    }
+
+    Ok(env_files)
+}
+
+#[tauri::command]
+async fn auto_sync_workspace_env_files(
+    workspace_path: String,
+    state: State<'_, AppState>,
+) -> Result<String, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    let vault_guard = state.vault.lock().await;
+    
+    // Find project associated with this workspace
+    let project = vault_guard.projects.values()
+        .find(|p| p.path == workspace_path)
+        .cloned();
+
+    if let Some(project) = project {
+        // Get all keys for this project
+        let project_keys: Vec<_> = vault_guard.keys.values()
+            .filter(|key| key.project_path.as_ref() == Some(&project.path))
+            .collect();
+
+        if project_keys.is_empty() {
+            return Ok("No keys found for this project".to_string());
+        }
+
+        // Find .env files in the workspace
+        let env_files = vec![".env", ".env.local", ".env.development"];
+        let mut synced_count = 0;
+
+        for env_file in env_files {
+            let env_path = format!("{}/{}", workspace_path, env_file);
+            
+            if std::path::Path::new(&env_path).exists() {
+                // Read current .env content
+                let current_content = std::fs::read_to_string(&env_path).unwrap_or_default();
+                let mut new_lines = Vec::new();
+
+                for key in &project_keys {
+                    let var_name = format!("{}_API_KEY", key.service.to_uppercase().replace(" ", "_"));
+                    
+                    // Check if key doesn't exist in .env
+                    if !current_content.contains(&var_name) {
+                        new_lines.push(format!("{}={}", var_name, key.key));
+                        synced_count += 1;
+                    }
+                }
+
+                // Append new keys to .env file
+                if !new_lines.is_empty() {
+                    match std::fs::OpenOptions::new().append(true).open(&env_path) {
+                        Ok(mut file) => {
+                            use std::io::Write;
+                            for line in new_lines {
+                                file.write_all(format!("\n{}", line).as_bytes()).ok();
+                            }
+                        },
+                        Err(e) => warn!("Failed to write to {}: {}", env_path, e)
+                    }
+                }
+            }
+        }
+
+        drop(vault_guard);
+        log_audit_event(
+            &state,
+            "auto_sync_workspace",
+            "project",
+            Some(&project.id),
+            true,
+            Some(&format!("Synced {} keys", synced_count)),
+        ).await;
+
+        Ok(format!("Auto-synced {} keys to workspace .env files", synced_count))
+    } else {
+        Ok("No project associated with this workspace".to_string())
+    }
+}
+
 async fn save_vault(state: &State<'_, AppState>) -> Result<(), String> {
     let vault_guard = state.vault.lock().await;
-    save_vault_to_path(&*vault_guard, &state.vault_path).await
+    info!("Saving vault - master_password_hash present: {}", vault_guard.master_password_hash.is_some());
+    let result = save_vault_to_path(&*vault_guard, &state.vault_path).await;
+    info!("Vault save completed");
+    result
 }
 
 async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result<(), String> {
@@ -1752,7 +2827,7 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
             ApiKeyMetadata {
                 id: api_key.id.clone(),
                 name: api_key.name.clone(),
-                key: api_key.key.clone(),
+                key: "[ENCRYPTED]".to_string(), // Never store actual keys in metadata
                 service: api_key.service.clone(),
                 description: api_key.description.clone(),
                 environment: api_key.environment.clone(),
@@ -1770,16 +2845,17 @@ async fn save_vault_to_path(vault: &ApiKeyVault, vault_path: &PathBuf) -> Result
             }
         }).collect();
         
-        let metadata = VaultMetadata {
+        // Create complete vault metadata structure
+        let vault_metadata = VaultMetadata {
             master_password_hash: vault.master_password_hash.clone(),
             salt: vault.salt.clone(),
-            created_at: chrono::Utc::now().to_rfc3339(),
-            version: "2.2.3".to_string(),
+            created_at: get_utc_timestamp(),
+            version: "1.0.0".to_string(),
             api_keys_metadata,
         };
         
         let metadata_path = vault_path.with_extension("metadata.json");
-        let metadata_json = serde_json::to_string_pretty(&metadata)
+        let metadata_json = serde_json::to_string_pretty(&vault_metadata)
             .map_err(|e| format!("Failed to serialize metadata: {}", e))?;
         fs::write(&metadata_path, metadata_json)
             .map_err(|e| format!("Failed to save metadata: {}", e))?;
@@ -1816,8 +2892,9 @@ fn load_vault(vault_path: &PathBuf) -> Result<ApiKeyVault, String> {
             if let Ok(metadata) = serde_json::from_str::<VaultMetadata>(&metadata_contents) {
                 // Create a vault with metadata but no sensitive data
                 let mut vault = ApiKeyVault::default();
-                vault.master_password_hash = metadata.master_password_hash;
-                vault.salt = metadata.salt;
+                vault.master_password_hash = metadata.master_password_hash.clone();
+                vault.salt = metadata.salt.clone();
+                info!("Loading vault from metadata, master_password_hash: {:?}", metadata.master_password_hash.is_some());
                 vault.encryption_key = Some("[ENCRYPTED]".to_string()); // Placeholder to indicate encryption
                 
                 // Load API keys metadata (with encrypted key data)
@@ -3954,14 +5031,7 @@ pub fn run() {
         .plugin(tauri_plugin_persisted_scope::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
-            // Focus existing window when second instance is launched
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.unminimize();
-            }
-        }))
+
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
@@ -4000,6 +5070,18 @@ pub fn run() {
             get_recent_activity,
             record_key_usage,
             sync_project,
+            create_project,
+            update_project,
+            delete_project,
+            get_project_by_id,
+            assign_keys_to_project,
+            get_keys_by_project,
+            get_unassigned_keys,
+            search_keys_in_project,
+            sync_key_to_env_file,
+            check_key_in_env_file,
+            get_env_file_suggestions,
+            auto_sync_workspace_env_files,
             parse_and_register_env_file,
             associate_project_with_env,
             get_project_env_associations,
