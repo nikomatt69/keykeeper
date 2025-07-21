@@ -2,6 +2,7 @@ import React from 'react'
 import { FolderIcon, FolderOpenIcon } from '@heroicons/react/24/outline'
 import { invoke } from '@tauri-apps/api/core'
 import { VSCodeStatusIndicator } from './VSCodeStatusIndicator'
+import { FileText } from 'lucide-react'
 
 interface ProjectPathDisplayProps {
   envFilePath: string
@@ -55,8 +56,8 @@ export default function ProjectPathDisplay({
       {/* .env File Path */}
       <div className="flex items-center space-x-3">
         <div className="flex-shrink-0">
-          <div className="w-8 h-8 bg-green-100 dark:bg-green-900 rounded-lg flex items-center justify-center">
-            <span className="text-green-600 dark:text-green-400 text-sm font-mono">.env</span>
+          <div className="flex justify-center items-center w-8 h-8 bg-green-100 rounded-lg dark:bg-green-900">
+            <FileText className="w-4 h-4" />
           </div>
         </div>
         <div className="flex-1 min-w-0">
@@ -68,7 +69,7 @@ export default function ProjectPathDisplay({
           </div>
           <button
             onClick={() => handleOpenFile(envFilePath)}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 truncate block max-w-full transition-colors"
+            className="block max-w-full text-xs text-gray-500 truncate transition-colors dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             title={envFilePath}
           >
             {truncatePath(envFilePath)}
@@ -96,7 +97,7 @@ export default function ProjectPathDisplay({
           </div>
           <button
             onClick={() => handleOpenFolder(projectPath)}
-            className="text-xs text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 truncate block max-w-full transition-colors"
+            className="block max-w-full text-xs text-gray-500 truncate transition-colors dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
             title={projectPath}
           >
             {truncatePath(projectPath)}
