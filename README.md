@@ -11,49 +11,58 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/cadcamfun/keykeeper/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+  <a href="https://github.com/nikomatt69/keykeeper/actions"><img src="https://img.shields.io/badge/build-passing-brightgreen"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL%20v3%20%2B%20Commercial-blue.svg"></a>
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-informational">
 </p>
 
 ---
 
-# Table of Contents
+# KeyKeeper
 
-- [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Configuration](#configuration)
-- [VSCode Extension](#vscode-extension)
-- [API Reference](#api-reference)
-- [Security](#security)
-- [Troubleshooting & FAQ](#troubleshooting--faq)
-- [Project Structure](#project-structure)
-- [Contributing](#contributing)
-- [License](#license)
-- [Acknowledgements](#acknowledgements)
+**Intellectual Property & Author**  
+KeyKeeper is an original project created and developed by [nikomatt69](https://github.com/nikomatt69). This repository and all its contents are fully protected as intellectual property. Unauthorized commercial use, copying, or distribution is strictly prohibited.  
+For commercial licensing information or inquiries, please contact: **nicom.19@icloud.com**
 
+**Launch & Product Hunt**  
+KeyKeeper is set to launch on [Product Hunt](https://www.producthunt.com/)!  
+Show your support and learn more by visiting the Product Hunt page:
+
+[![Product Hunt Badge](https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=000000&theme=light)](https://www.producthunt.com/posts/keykeeper)
+
+---
+
+## Overview
+
+KeyKeeper is a secure, local solution for API key management designed with developers in mind. It combines modern UI/UX, robust security practices, and dual licensing to provide:
+- **Open-Source Freedom:** Distributed under GNU AGPL v3.0.
+- **Commercial Flexibility:** A proprietary license is available for those needing closed-source integration.
+  
 ---
 
 ## Features
 
-- Local encrypted vault with master password
-- Environment organization (dev, staging, production)
-- Expiration tracking and advanced search
-- Tags, scopes, and project sync
-- Modern UI with smooth animations
-- Secure copy and hide/show for API keys
-- VSCode extension for seamless workflow
+- **Secure Vault:** Local encrypted vault with master password protection.
+- **Environment Organization:** Manage different environments like development, staging, and production.
+- **Advanced Functionality:** Expiration tracking, advanced search, tags, scopes, and project synchronization.
+- **Modern UI:** Smooth animations and a beautiful interface.
+- **Secure Clipboard Operations:** Securely copy and hide/show API keys.
+- **VSCode Integration:** Includes a VSCode extension for a seamless developer workflow.
+- **Dual Licensing:** Open-source under GNU AGPL v3.0 and available commercially.
+
+---
 
 ## Installation
 
 ### Prerequisites
 
 - Node.js 18+
-- Rust 1.77+ (for Tauri v2)
+- Rust 1.77+ (compatible with Tauri v2)
 - Yarn
 
 ### Setup
+
+Install dependencies and start the development environment with:
 
 ```bash
 yarn install
@@ -67,62 +76,86 @@ To build for production:
 yarn tauri:build
 ```
 
+---
+
 ## Usage
 
-- Set your master password on first launch
-- Add, edit, and organize API keys
-- Lock/unlock the vault as needed
-- Use the search and filter features
-- Track expiration and tag your keys
+- **First Launch:** Set your master password on the first run.
+- **API Key Management:** Add, edit, and organize your API keys.
+- **Vault Security:** Lock/unlock the vault as needed.
+- **Search & Filter:** Use advanced search and filtering functionalities.
+- **Expiration Tracking:** Monitor your API keys by tracking their expiration dates.
+
+---
 
 ## Configuration
 
-- Edit `tailwind.config.js` for UI customization
-- Set environment variables in `.env`
-- Configure Tauri in `src-tauri/tauri.conf.json`
+- **UI Customization:** Modify the UI by editing `tailwind.config.js`.
+- **Environment Setup:** Set environment variables in the `.env` file.
+- **Tauri Configuration:** Customize Tauri settings in `src-tauri/tauri.conf.json`.
 
-## VSCode Extension
-
-For packaging, publishing, and developing the VSCode extension, see [`extensions/vscode/README.md`](extensions/vscode/README.md).
-- Npm scripts: `package`, `publish`, `vsce:login`, etc.
-- Build `.vsix` and publish to the marketplace.
-
-## API Reference
-
-| HTTP Endpoint                | Method | Tauri Command                |
-|-----------------------------|--------|------------------------------|
-| /api/keys                   | GET    | get_api_keys                 |
-| /api/keys/search?q=...      | GET    | search_api_keys_by_query     |
-| /api/projects               | GET    | get_projects                 |
-| /api/activity/recent        | GET    | get_recent_activity          |
-| /api/keys/{id}/usage        | POST   | record_key_usage             |
-| /api/projects/sync          | POST   | sync_project                 |
-| /health                     | GET    | -                            |
+---
 
 ## Security
 
-- All data is stored locally and encrypted
-- Master password protects the vault (Argon2/bcrypt recommended)
-- Minimal permissions via Tauri capabilities
-- No cloud or external sync by default
+KeyKeeper is designed with stringent security best practices:
+- **Local Encrypted Storage:** All sensitive data is stored locally in an encrypted vault.
+- **Vault Protection:** Secured by a master password (using algorithms like Argon2 or bcrypt is recommended).
+- **Minimal Permissions:** Leverages Tauri’s capabilities for secure, minimal permissions.
+- **No Cloud Sync:** By default, no data is synchronized externally.
+
+If you encounter any vulnerabilities, please report them immediately to [nicom.19@icloud.com](mailto:nicom.19@icloud.com).
+
+---
+
+## VSCode Extension
+
+A dedicated VSCode extension is available for seamless integration:
+- Refer to [`extensions/vscode/README.md`](extensions/vscode/README.md) for setup and usage.
+- Includes npm scripts for packaging, publishing, and developing your extension.
+
+---
+
+## API Reference
+
+| HTTP Endpoint              | Method | Tauri Command              |
+|----------------------------|--------|----------------------------|
+| /api/keys                  | GET    | get_api_keys               |
+| /api/keys/search?q=...     | GET    | search_api_keys_by_query   |
+| /api/projects              | GET    | get_projects               |
+| /api/activity/recent       | GET    | get_recent_activity        |
+| /api/keys/{id}/usage       | POST   | record_key_usage           |
+| /api/projects/sync         | POST   | sync_project               |
+| /health                    | GET    | -                          |
+
+---
 
 ## Troubleshooting & FAQ
 
-**Q: Error `TAURI_SIGNING_PRIVATE_KEY`?**
-A: Generate the key with `npx tauri signer generate` and set the environment variable as above.
+**Q: I encountered an error regarding `TAURI_SIGNING_PRIVATE_KEY`?**  
+A: Generate the signing key with:
 
-**Q: Rustup not found?**
-A: Install with:
-```sh
+```bash
+npx tauri signer generate
+```
+
+Then set the `TAURI_SIGNING_PRIVATE_KEY` environment variable with the generated key.
+
+**Q: Rustup is not installed. What should I do?**  
+A: Install Rustup using:
+
+```bash
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 . "$HOME/.cargo/env"
 ```
 
-**Q: Emails not sent?**
-A: Check SMTP config, port, credentials, and that your provider does not block the IP.
+**Q: Build fails on Mac/Windows/Linux?**  
+A: Verify your Rust toolchain, signing keys, permissions, and Tauri dependencies.
 
-**Q: Build fails on Mac/Win/Linux?**
-A: Check Rust toolchain, signing keys, permissions, and Tauri dependencies.
+**Q: Emails are not being sent?**  
+A: Check your SMTP configuration, port, credentials, and any potential IP blocks from your provider.
+
+---
 
 ## Project Structure
 
@@ -136,21 +169,28 @@ keykeeper/
 └── package.json
 ```
 
+---
+
 ## Contributing
 
-1. Fork and clone the repo
-2. Create a feature branch
-3. Submit a pull request
+1. **Fork and Clone:** Fork the repository and clone it locally.
+2. **Feature Branch:** Create a new branch for your feature or fix.
+3. **Pull Request:** Submit your changes in a pull request with a detailed description.
+
+All contributions must adhere to the licensing terms and coding guidelines of KeyKeeper.
+
+---
 
 ## License
 
-All rights reserved.  See [LICENSE](LICENSE).
+KeyKeeper is dual-licensed under the GNU AGPL v3.0 (open-source) and a commercial license. Any redistribution or modifications must comply with these terms.  
+For the full license text, please refer to [LICENSE](LICENSE).
+
+---
 
 ## Acknowledgements
 
-- Tauri, Next.js, Framer Motion, Lucide, and more.
-
----
+- Special thanks to the communities behind Tauri, Next.js, Framer Motion, Lucide, and more.
 
 <p align="center">
   <img src="public/assets/icon.png" alt="KeyKeeper Icon" width="60"/>

@@ -123,7 +123,8 @@ export default function ApiKeyDetail() {
     const keyToShow = decryptedKey || key
 
     if (isVisible) return keyToShow
-    return keyToShow?.slice(0, 8) + '•'.repeat(Math.max(0, keyToShow?.length || - 12)) + keyToShow?.slice(-4)
+    // Show a fixed number of dots, e.g., 16 (identico alla lista)
+    return '•'.repeat(16)
   }
 
 

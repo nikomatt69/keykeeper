@@ -216,11 +216,7 @@ export default function Sidebar() {
           </div>
         )}
       </div>
-      {!sidebarCollapsed && (
-        <div className="px-4 pb-4">
-          <ProjectSelector showStats={true} />
-        </div>
-      )}
+
       {!sidebarCollapsed &&
         <div className="p-2 border-t h-max-[65vh] border-gray-200 dark:border-gray-700">
           <DragDropZone
@@ -235,6 +231,11 @@ export default function Sidebar() {
 
       {/* Footer Actions */}
       <div className="p-4 space-y-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.08)' }}>
+        {!sidebarCollapsed && (
+          <div className="px-4 pb-2">
+            <ProjectSelector showStats={true} />
+          </div>
+        )}
         <button
           onClick={handleExport}
           disabled={isLoading}

@@ -12,6 +12,7 @@ import AssignKeysModal from './modals/AssignKeysModal'
 import SettingsScreen from './SettingsScreen'
 import DragDropZone from './DragDropZone'
 import ProjectDashboard from './ProjectDashboard'
+import BottomSheet from './BottomSheet'
 
 export default function MainLayout() {
   const {
@@ -65,13 +66,34 @@ export default function MainLayout() {
             <ApiKeyList />
 
             {/* Drag & Drop Zone - Only show when no keys or as help section */}
+            <BottomSheet
+              isOpen={!!selectedProject}
+              onClose={() => {
+                // Close functionality via X button - we need to add a clearSelectedProject method to store
+                // For now, this will only work via the X button since we removed the backdrop
+                console.log('Close project dashboard')
+              }}
+              title={selectedProject?.name || 'Project Dashboard'}
+              subtitle={selectedProject ? `Created ${new Date(selectedProject.created_at).toLocaleDateString()}` : undefined}
+              collapsible={true}
+              defaultHeight="60vh"
+              maxHeight="85vh"
+            >
+              {selectedProject && (
+                <ProjectDashboard
+                  project={selectedProject}
+                  onEdit={() => setShowProjectModal(true)}
+                  onAssignKeys={() => setShowAssignKeysModal(true)}
+                />
+              )}
+            </BottomSheet>
 
           </div>
 
         </motion.div>
 
-        {/* API Key Detail or Project Dashboard */}
-        {selectedKey && !selectedProject && (
+        {/* API Key Detail */}
+        {selectedKey && (
           <motion.div
             initial={{ x: 400, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
@@ -84,23 +106,7 @@ export default function MainLayout() {
           </motion.div>
         )}
 
-        {/* Project Dashboard */}
-        {selectedProject && (
-          <motion.div
-            initial={{ x: 400, opacity: 0 }}
-            animate={{ x: 0, opacity: 1 }}
-            exit={{ x: 400, opacity: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            className="flex-1 p-6 overflow-y-auto"
-            style={{ backgroundColor: 'var(--color-background-tertiary)' }}
-          >
-            <ProjectDashboard 
-              project={selectedProject}
-              onEdit={() => setShowProjectModal(true)}
-              onAssignKeys={() => setShowAssignKeysModal(true)}
-            />
-          </motion.div>
-        )}
+
       </div>
 
       {/* Modals */}
@@ -109,19 +115,20 @@ export default function MainLayout() {
       {showDeleteModal && <DeleteApiKeyModal />}
       {showSettingsModal && <SettingsScreen />}
       {showProjectModal && (
-        <ProjectModal 
+        <ProjectModal
           isOpen={showProjectModal}
           onClose={() => setShowProjectModal(false)}
           project={selectedProject}
         />
       )}
       {showAssignKeysModal && (
-        <AssignKeysModal 
+        <AssignKeysModal
           isOpen={showAssignKeysModal}
           onClose={() => setShowAssignKeysModal(false)}
           project={selectedProject}
         />
       )}
+
     </div>
   )
 }
