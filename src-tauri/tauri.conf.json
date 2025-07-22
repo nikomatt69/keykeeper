@@ -97,16 +97,6 @@
       ],
       "dialog": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMzOEM1OTk2NzNEOUMzNkMKUldSc3c5bHpsbG1NTStBSUhUTU13clNVbGQvcytvT0M1T09GTjJxc1l2eU53SnFxb3Jja29qMjEK"
-    },
-    "spotlight": {
-      "windows": [
-        {
-          "label": "main",
-          "shortcut": "Cmd+Shift+J",
-          "macos_window_level": 20
-        }
-      ],
-      "global_close_shortcut": "Escape"
     }
   }
 }
