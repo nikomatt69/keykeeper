@@ -117,7 +117,11 @@ export default function Sidebar() {
           </div>
         </div>
       )}
-
+      {!sidebarCollapsed && (
+        <div className="px-4 pb-2 m-2 mx-3" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <ProjectSelector showStats={true} />
+        </div>
+      )}
       {/* Navigation */}
       <div className="overflow-auto flex-1 p-4 space-y-2 scrollbar-native">
         <motion.button
@@ -231,11 +235,7 @@ export default function Sidebar() {
 
       {/* Footer Actions */}
       <div className="p-4 space-y-2" style={{ borderTop: '1px solid rgba(0, 0, 0, 0.08)' }}>
-        {!sidebarCollapsed && (
-          <div className="px-4 pb-2">
-            <ProjectSelector showStats={true} />
-          </div>
-        )}
+
         <button
           onClick={handleExport}
           disabled={isLoading}

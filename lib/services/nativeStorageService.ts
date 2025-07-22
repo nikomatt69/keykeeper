@@ -34,7 +34,8 @@ class NativeStorageService {
 
     try {
       // Initialize Tauri Store
-      this.store = await Store.load('keykeeper-app.dat');
+      this.store = new Store('keykeeper-app.dat');
+      await this.store.load(); // Load the store from disk
 
       // Initialize device ID if not exists
       const deviceId = await this.getDeviceId();

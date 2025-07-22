@@ -48,7 +48,7 @@ jobs:
           cache-dependency-path: 'yarn.lock'
 
       - name: Install frontend dependencies
-        run: yarn install --network-timeout 1000000 --frozen-lockfile
+        run: yarn install --network-timeout 1000000 
 
       - name: Build frontend
         run: yarn build
