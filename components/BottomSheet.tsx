@@ -100,7 +100,7 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               ) : (
                 // Expanded Mode - Original layout
                 <>
-                  <div className="flex items-center ml-3 space-x-4">
+                  <div className="flex items-center mt-4 ml-3 space-x-4">
                     {/* Project Name */}
                     <h3 className="text-sm font-bold text-contrast-high">
                       <span>Project:</span>
