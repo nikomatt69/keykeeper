@@ -189,12 +189,7 @@ In the event of a data breach:
 - **Notification**: Authorities notified within 72 hours if required
 - **User Communication**: Direct notification if high risk to your rights
 
-### 10.2 Reporting Breaches
 
-To report a potential breach:
-- **Email**: security@keykeeper.app
-- **Phone**: +1-XXX-XXX-XXXX (24/7)
-- **Portal**: https://keykeeper.app/security/report
 
 ## 11. Children's Privacy
 
@@ -212,12 +207,7 @@ California residents have additional rights:
 - **Right to Opt-Out**: Sale of personal information (not applicable - we don't sell data)
 - **Right to Non-Discrimination**: Equal service regardless of privacy choices
 
-### 12.2 Exercising CCPA Rights
 
-Contact us at privacy@keykeeper.app with:
-- Clear identification of yourself
-- Specific right you wish to exercise
-- Sufficient information to verify your identity
 
 ## 13. Updates to This Policy
 
@@ -237,40 +227,8 @@ We may update this Privacy Policy to:
 
 **Non-Material Changes**: Updated policy with revision date
 
-## 14. Contact Information
 
-### 14.1 Privacy Inquiries
 
-For privacy-related questions:
-- **Email**: privacy@keykeeper.app
-- **Mail**: 
-  ```
-  KeyKeeper Privacy Team
-  [Company Address]
-  [City, State, ZIP]
-  [Country]
-  ```
-
-### 14.2 Data Protection Officer
-
-Our Data Protection Officer can be reached at:
-- **Email**: dpo@keykeeper.app
-- **Phone**: +1-XXX-XXX-XXXX
-
-### 14.3 EU Representative
-
-For EU residents, our EU representative is:
-- **Company**: [EU Representative Name]
-- **Email**: eu-rep@keykeeper.app
-- **Address**: [EU Address]
-
-## 15. Governing Law
-
-This Privacy Policy is governed by:
-- **Primary Jurisdiction**: [Your Country/State] law
-- **GDPR**: For EU residents
-- **CCPA**: For California residents
-- **Local Laws**: As applicable based on user location
 
 ## 16. Definitions
 

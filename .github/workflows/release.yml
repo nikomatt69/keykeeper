@@ -43,18 +43,20 @@ jobs:
       - name: Sync node version and setup cache
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: '20'
           cache: 'yarn'
+          cache-dependency-path: 'yarn.lock'
 
       - name: Install frontend dependencies
-        run: yarn install --network-timeout 1000000
+        run: yarn install --network-timeout 1000000 --frozen-lockfile
 
       - name: Build frontend
         run: yarn build
+        env:
+          NODE_OPTIONS: '--max_old_space_size=4096'
 
       - name: Build the app
-
-        uses: tauri-apps/tauri-action@v0.4.4   # or a commit SHA
+        uses: tauri-apps/tauri-action@v0.4.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:

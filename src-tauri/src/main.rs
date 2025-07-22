@@ -354,26 +354,7 @@ pub struct AppState {
 
 
 
-fn encrypt_api_key(plaintext: &str, password: &str) -> Result<String, String> {
-    let mut salt = [0u8; 16];
-    OsRng.fill_bytes(&mut salt);
-    let key_bytes = derive_key_from_password(password, &salt);
-    let key = Key::<Aes256Gcm>::from_slice(&key_bytes);
-    let cipher = Aes256Gcm::new(key);
-    
-    let mut nonce_bytes = [0u8; 12];
-    OsRng.fill_bytes(&mut nonce_bytes);
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    
-    let ciphertext = cipher.encrypt(nonce, plaintext.as_bytes())
-        .map_err(|e| format!("Encryption failed: {}", e))?;
-    
-    // Combine salt + nonce + ciphertext and encode as base64
-    let mut combined = salt.to_vec();
-    combined.extend_from_slice(&nonce_bytes);
-    combined.extend_from_slice(&ciphertext);
-    Ok(general_purpose::STANDARD.encode(combined))
-}
+
 
 fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
     let combined = general_purpose::STANDARD.decode(encrypted)
@@ -2975,23 +2956,7 @@ fn decrypt_vault_with_password(vault_path: &PathBuf, password: &str) -> Result<A
     Ok(vault)
 }
 
-fn load_encrypted_vault(vault_path: &PathBuf, _password: &str) -> Result<ApiKeyVault, String> {
-    if !vault_path.exists() {
-        return Ok(ApiKeyVault::default());
-    }
 
-    let contents =
-        fs::read_to_string(vault_path).map_err(|e| format!("Failed to read vault: {}", e))?;
-
-    // Try to parse as JSON first (unencrypted)
-    if let Ok(vault) = serde_json::from_str::<ApiKeyVault>(&contents) {
-        return Ok(vault);
-    }
-
-    // Must be encrypted, but we need the metadata to decrypt
-    // For now, this is a simplified approach - in production, store metadata separately
-    Err("Encrypted vault loading not yet implemented".to_string())
-}
 
 // Encryption/Decryption utilities for vault data
 fn encrypt_data(data: &str, key: &[u8]) -> Result<String, String> {
@@ -4157,25 +4122,7 @@ fn get_app_data_dir(app: &AppHandle) -> Result<PathBuf, String> {
 // Removed get_request_body - replaced with hyper HTTP server
 
 // Helper function to validate VSCode tokens
-async fn validate_vscode_token(vault: &Arc<Mutex<ApiKeyVault>>, auth_header: Option<&str>) -> bool {
-    if let Some(auth_value) = auth_header {
-        if let Some(token) = auth_value.strip_prefix("Bearer ") {
-            let vault_guard = vault.lock().await;
-            if let Some(stored_token) = vault_guard
-                .vscode_tokens
-                .iter()
-                .find(|t| t.token == token && t.is_valid)
-            {
-                // Check if token is not expired
-                let now = Utc::now();
-                if let Ok(expires_at) = DateTime::parse_from_rfc3339(&stored_token.expires_at) {
-                    return now.timestamp() < expires_at.timestamp();
-                }
-            }
-        }
-    }
-    false
-}
+
 
 // Old TCP server implementation removed - now using Hyper HTTP server
 /*
