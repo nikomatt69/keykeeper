@@ -32,6 +32,14 @@ jobs:
             libssl-dev \
             pkg-config
 
+      - name: Install OpenSSL (Windows only)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          choco install openssl -y --no-progress
+          echo "OPENSSL_DIR=C:\Program Files\OpenSSL-Win64" >> $env:GITHUB_ENV
+          echo "OPENSSL_LIB_DIR=C:\Program Files\OpenSSL-Win64\lib" >> $env:GITHUB_ENV
+          echo "OPENSSL_INCLUDE_DIR=C:\Program Files\OpenSSL-Win64\include" >> $env:GITHUB_ENV
+
       - name: Rust setup
         uses: dtolnay/rust-toolchain@stable
 
@@ -59,10 +67,14 @@ jobs:
         uses: tauri-apps/tauri-action@v0.4.4
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENSSL_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\Program Files\OpenSSL-Win64' || '' }}
+          OPENSSL_LIB_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\Program Files\OpenSSL-Win64\lib' || '' }}
+          OPENSSL_INCLUDE_DIR: ${{ matrix.platform == 'windows-latest' && 'C:\Program Files\OpenSSL-Win64\include' || '' }}
+          RUSTFLAGS: ${{ matrix.platform == 'windows-latest' && '-C target-feature=+crt-static' || '' }}
         with:
           tagName: v__VERSION__
           releaseName: 'KeyKeeper v__VERSION__'
           releaseBody: 'See the assets to download and install this version.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.platform == 'macos-latest' && '--target universal-apple-darwin' || '' }}
+          args: ${{ matrix.platform == 'macos-latest' && '--target aarch64-apple-darwin' || '' }}
