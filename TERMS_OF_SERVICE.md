@@ -347,10 +347,6 @@ For questions about these Terms:
 - Violate third-party API terms
 - Store illegal content
 
-**📞 Need Help?**:
-- Support: support@keykeeper.app
-- Security: security@keykeeper.app
-- Legal: legal@keykeeper.app
 
 ---
 
