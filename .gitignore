@@ -7,7 +7,7 @@ node_modules/
 
 # Testing
 coverage/
-extensions/vscode/
+
 # Next.js
 .next/
 out/

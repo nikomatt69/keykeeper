@@ -78,6 +78,57 @@ export interface VSCodeWorkspace {
     last_updated: string;
 }
 
+// ML Engine Types for VSCode Extension
+export interface ContextInfo {
+    active_app?: string;
+    file_path?: string;
+    file_extension?: string;
+    project_type?: string;
+    language?: string;
+    content_snippet?: string;
+}
+
+export interface MLPrediction {
+    api_key_suggestions: KeySuggestion[];
+    context_confidence: number;
+    usage_prediction: UsagePrediction;
+    security_score: SecurityScore;
+}
+
+export interface KeySuggestion {
+    key_id: string;
+    confidence: number;
+    reason: string;
+    suggested_format: KeyFormat;
+}
+
+export enum KeyFormat {
+    Plain = 'Plain',
+    EnvironmentVariable = 'EnvironmentVariable',
+    ProcessEnv = 'ProcessEnv',
+    ConfigFile = 'ConfigFile'
+}
+
+export interface UsagePrediction {
+    frequency_score: number;
+    recency_score: number;
+    context_match_score: number;
+    predicted_next_usage?: string;
+}
+
+export interface SecurityScore {
+    risk_level: RiskLevel;
+    confidence: number;
+    reasons: string[];
+}
+
+export enum RiskLevel {
+    Low = 'Low',
+    Medium = 'Medium',
+    High = 'High',
+    Critical = 'Critical'
+}
+
 export class KeyKeeperService {
     private client: AxiosInstance;
     private ws: WebSocket | null = null;
@@ -625,6 +676,576 @@ export class KeyKeeperService {
         } catch (error: any) {
             console.error('Error getting project VSCode status:', error);
             return 'unknown';
+        }
+    }
+
+    // ===============================
+    //  ML ENGINE INTEGRATION
+    // ===============================
+
+    async initializeMLEngine(config?: any): Promise<boolean> {
+        try {
+            const response = await this.client.post('/api/ml/initialize', { config });
+            this.logAuditEvent('ml_init', 'success', 'ML Engine initialized successfully');
+            return response.data.success !== false;
+        } catch (error: any) {
+            this.logAuditEvent('ml_init', 'error', `ML Engine initialization failed: ${error.message}`);
+            console.error('Error initializing ML Engine:', error);
+            return false;
+        }
+    }
+
+    async checkMLEngineStatus(): Promise<boolean> {
+        try {
+            const response = await this.client.get('/api/ml/status');
+            return response.data.initialized === true;
+        } catch (error: any) {
+            console.error('Error checking ML Engine status:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get ML-powered smart suggestions for API keys based on current context
+     */
+    async getSmartSuggestions(): Promise<MLPrediction | null> {
+        try {
+            const context = await this.detectCurrentContext();
+            const keys = await this.getApiKeys();
+            const keyIds = keys.map(k => k.id);
+
+            const response = await this.client.post('/api/ml/analyze', {
+                context,
+                available_keys: keyIds
+            });
+
+            this.logAuditEvent('ml_suggestion', 'success', `Generated ${response.data.api_key_suggestions?.length || 0} suggestions`);
+            return response.data;
+        } catch (error: any) {
+            this.logAuditEvent('ml_suggestion', 'error', `Failed to get ML suggestions: ${error.message}`);
+            console.error('Error getting smart suggestions:', error);
+            return null;
+        }
+    }
+
+    /**
+     * Detect current VSCode context for ML analysis
+     */
+    async detectCurrentContext(): Promise<ContextInfo> {
+        const editor = vscode.window.activeTextEditor;
+        const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+        
+        let context: ContextInfo = {
+            active_app: 'VSCode'
+        };
+
+        if (editor) {
+            const document = editor.document;
+            const filePath = document.fileName;
+            const fileExtension = filePath.split('.').pop()?.toLowerCase();
+            
+            context.file_path = filePath;
+            context.file_extension = fileExtension;
+            context.language = document.languageId;
+            
+            // Get a small content snippet for context (first 200 chars)
+            const text = document.getText();
+            context.content_snippet = text.substring(0, 200);
+        }
+
+        if (workspaceFolder) {
+            context.project_type = await this.inferProjectType(workspaceFolder.uri.fsPath);
+        }
+
+        return context;
+    }
+
+    /**
+     * Record ML usage for learning
+     */
+    async recordMLUsage(keyId: string, context: ContextInfo, success: boolean): Promise<void> {
+        try {
+            await this.client.post('/api/ml/record-usage', {
+                key_id: keyId,
+                context,
+                success
+            });
+        } catch (error: any) {
+            console.error('Error recording ML usage:', error);
+            // Don't throw, this is not critical
+        }
+    }
+
+    /**
+     * Get ML usage statistics
+     */
+    async getMLStats(): Promise<Record<string, any>> {
+        try {
+            const response = await this.client.get('/api/ml/stats');
+            return response.data || {};
+        } catch (error: any) {
+            console.error('Error getting ML stats:', error);
+            return {};
+        }
+    }
+
+    /**
+     * Intelligent key insertion with ML-powered context awareness
+     */
+    async intelligentMLKeyInsertion(keyId?: string): Promise<{
+        keyInserted: boolean;
+        envSynced: boolean;
+        message: string;
+    }> {
+        try {
+            const context = await this.detectCurrentContext();
+            
+            // Get ML suggestions if no keyId provided
+            if (!keyId) {
+                const prediction = await this.getSmartSuggestions();
+                if (!prediction || prediction.api_key_suggestions.length === 0) {
+                    throw new Error('No suitable keys found for current context');
+                }
+                
+                // Use the highest confidence suggestion
+                const bestSuggestion = prediction.api_key_suggestions[0];
+                keyId = bestSuggestion.key_id;
+                
+                // Show security warning if high risk
+                if (prediction.security_score.risk_level === RiskLevel.High || 
+                    prediction.security_score.risk_level === RiskLevel.Critical) {
+                    const proceed = await vscode.window.showWarningMessage(
+                        `Security Alert: ${prediction.security_score.risk_level} risk detected.\n${prediction.security_score.reasons.join(', ')}`,
+                        'Proceed Anyway',
+                        'Cancel'
+                    );
+                    if (proceed !== 'Proceed Anyway') {
+                        throw new Error('Key insertion cancelled due to security concerns');
+                    }
+                }
+                
+                vscode.window.showInformationMessage(
+                    `🤖 Smart suggestion: ${bestSuggestion.reason} (${Math.round(bestSuggestion.confidence * 100)}% confidence)`
+                );
+            }
+
+            // Get the selected key
+            const keys = await this.getApiKeys();
+            const selectedKey = keys.find(k => k.id === keyId);
+            if (!selectedKey) {
+                throw new Error('Selected key not found');
+            }
+
+            // Security validation
+            await this.validateKeyUsageSecurity(selectedKey);
+
+            // Format key based on context
+            const format = this.getOptimalKeyFormat(context);
+            const formattedKey = this.formatKeyForInsertion(selectedKey, format);
+
+            // Insert key at cursor
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                const position = editor.selection.active;
+                await editor.edit(editBuilder => {
+                    editBuilder.insert(position, formattedKey);
+                });
+            }
+
+            // Standard intelligent insertion logic
+            const result = await this.intelligentKeyInsertion(keyId);
+            
+            // Record ML usage
+            await this.recordMLUsage(keyId, context, true);
+            
+            // Log success
+            this.logAuditEvent('intelligent_ml_insertion', 'success', 
+                `Key ${selectedKey.name} inserted with format ${format}`);
+
+            return {
+                ...result,
+                message: `${result.message} (ML-optimized format: ${format})`
+            };
+
+        } catch (error: any) {
+            this.logAuditEvent('intelligent_ml_insertion', 'error', `Failed: ${error.message}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Get optimal key format based on context
+     */
+    private getOptimalKeyFormat(context: ContextInfo): string {
+        // Map ML KeyFormat to VSCode formats
+        switch (context.file_extension) {
+            case 'env':
+                return 'environment';
+            case 'js':
+            case 'ts':
+            case 'jsx':
+            case 'tsx':
+                return 'process.env';
+            case 'json':
+            case 'yaml':
+            case 'yml':
+                return 'value'; // For config files, use raw value
+            default:
+                return 'value';
+        }
+    }
+
+    /**
+     * Infer project type from workspace
+     */
+    private async inferProjectType(workspacePath: string): Promise<string | undefined> {
+        const fs = require('fs');
+        const path = require('path');
+        
+        try {
+            // Check for common project files
+            const files = fs.readdirSync(workspacePath);
+            
+            if (files.includes('package.json')) {
+                return 'node';
+            } else if (files.includes('Cargo.toml')) {
+                return 'rust';
+            } else if (files.includes('requirements.txt') || files.includes('setup.py')) {
+                return 'python';
+            } else if (files.includes('pom.xml') || files.includes('build.gradle')) {
+                return 'java';
+            } else if (files.includes('go.mod')) {
+                return 'go';
+            }
+            
+            return undefined;
+        } catch (error) {
+            return undefined;
+        }
+    }
+
+    /**
+     * Enhanced key insertion with ML context awareness
+     */
+    async insertKeyWithContext(keyId: string): Promise<void> {
+        try {
+            const context = await this.detectCurrentContext();
+            const keys = await this.getApiKeys();
+            const key = keys.find(k => k.id === keyId);
+            
+            if (!key) {
+                throw new Error('Key not found');
+            }
+
+            // Get ML analysis for this specific key
+            const prediction = await this.getSmartSuggestions();
+            const suggestion = prediction?.api_key_suggestions.find(s => s.key_id === keyId);
+            
+            let format = 'value';
+            if (suggestion) {
+                // Use ML suggested format
+                switch (suggestion.suggested_format) {
+                    case KeyFormat.EnvironmentVariable:
+                        format = 'environment';
+                        break;
+                    case KeyFormat.ProcessEnv:
+                        format = 'process.env';
+                        break;
+                    default:
+                        format = 'value';
+                        break;
+                }
+                
+                vscode.window.showInformationMessage(
+                    `🤖 Using ML-optimized format: ${suggestion.reason}`
+                );
+            }
+
+            // Insert with the determined format
+            const formattedKey = this.formatKeyForInsertion(key, format);
+            const editor = vscode.window.activeTextEditor;
+            if (editor) {
+                const position = editor.selection.active;
+                await editor.edit(editBuilder => {
+                    editBuilder.insert(position, formattedKey);
+                });
+                
+                // Record usage
+                await this.recordMLUsage(keyId, context, true);
+                await this.recordKeyUsage(keyId);
+            }
+            
+        } catch (error: any) {
+            console.error('Error inserting key with context:', error);
+            throw error;
+        }
+    }
+
+    // ===============================
+    //  PUBLIC API ACCESS METHODS
+    // ===============================
+
+    /**
+     * Make a GET request to the API
+     */
+    async get(url: string): Promise<any> {
+        return await this.client.get(url);
+    }
+
+    /**
+     * Make a POST request to the API
+     */
+    async post(url: string, data?: any): Promise<any> {
+        return await this.client.post(url, data);
+    }
+
+    /**
+     * Make a PUT request to the API
+     */
+    async put(url: string, data?: any): Promise<any> {
+        return await this.client.put(url, data);
+    }
+
+    /**
+     * Make a DELETE request to the API
+     */
+    async delete(url: string): Promise<any> {
+        return await this.client.delete(url);
+    }
+
+    // ================================
+    // Documentation Management (New)
+    // ================================
+
+    /**
+     * Add documentation for current API/context
+     */
+    async addDocumentationForCurrentAPI(title: string, content: string, url?: string, tags?: string[]): Promise<void> {
+        const activeEditor = vscode.window.activeTextEditor;
+        let projectId: string | undefined;
+        
+        if (activeEditor?.document.uri.scheme === 'file') {
+            const workspaceFolder = vscode.workspace.getWorkspaceFolder(activeEditor.document.uri);
+            if (workspaceFolder) {
+                // Try to detect project context
+                projectId = await this.detectProjectIdFromPath(workspaceFolder.uri.fsPath);
+            }
+        }
+
+        await this.post('/api/docs/create', {
+            title,
+            content,
+            doc_type: 'api',
+            project_id: projectId,
+            url,
+            tags: tags || [],
+            language: 'en'
+        });
+    }
+
+    /**
+     * Get all documentation
+     */
+    async getAllDocumentation(): Promise<any[]> {
+        return await this.get('/api/docs');
+    }
+
+    /**
+     * Search documentation
+     */
+    async searchDocumentation(query: string, projectId?: string, docType?: string): Promise<any[]> {
+        const params = new URLSearchParams();
+        params.append('query', query);
+        if (projectId) params.append('project_id', projectId);
+        if (docType) params.append('doc_type', docType);
+        
+        return await this.get(`/api/docs/search?${params.toString()}`);
+    }
+
+    /**
+     * Get documentation by project
+     */
+    async getDocumentationByProject(projectId: string): Promise<any[]> {
+        return await this.get(`/api/docs/project/${projectId}`);
+    }
+
+    /**
+     * Update documentation
+     */
+    async updateDocumentation(docId: string, updates: any): Promise<any> {
+        return await this.put(`/api/docs/${docId}`, updates);
+    }
+
+    /**
+     * Delete documentation
+     */
+    async deleteDocumentation(docId: string): Promise<void> {
+        await this.delete(`/api/docs/${docId}`);
+    }
+
+    /**
+     * Toggle documentation favorite
+     */
+    async toggleDocumentationFavorite(docId: string): Promise<any> {
+        return await this.post(`/api/docs/${docId}/toggle-favorite`);
+    }
+
+    /**
+     * Scrape and save documentation from URL
+     */
+    async scrapeAndSaveDocumentation(url: string, title?: string, projectId?: string, tags?: string[]): Promise<any> {
+        return await this.post('/api/docs/scrape', {
+            url,
+            title,
+            project_id: projectId,
+            tags: tags || [],
+            doc_type: 'scraped'
+        });
+    }
+
+    /**
+     * Get API providers for documentation
+     */
+    async getAPIProviders(): Promise<any[]> {
+        return await this.get('/api/providers');
+    }
+
+    /**
+     * Auto-detect API provider from current context
+     */
+    async autoDetectAPIProvider(filePath?: string): Promise<any> {
+        const activeEditor = vscode.window.activeTextEditor;
+        const currentFile = filePath || activeEditor?.document.uri.fsPath;
+        
+        if (currentFile) {
+            return await this.post('/api/providers/detect', {
+                file_path: currentFile,
+                content: activeEditor?.document.getText()
+            });
+        }
+        
+        return null;
+    }
+
+    /**
+     * Generate API configuration 
+     */
+    async generateAPIConfiguration(providerId: string, options?: any): Promise<any> {
+        return await this.post('/api/generate/config', {
+            provider_id: providerId,
+            options: options || {}
+        });
+    }
+
+    /**
+     * Preview generated configuration
+     */
+    async previewGeneratedConfig(providerId: string, options?: any): Promise<any> {
+        return await this.post('/api/generate/preview', {
+            provider_id: providerId,
+            options: options || {}
+        });
+    }
+
+    // ================================
+    // Helper Methods
+    // ================================
+
+    /**
+     * Detect project ID from file path
+     */
+    private async detectProjectIdFromPath(workspacePath: string): Promise<string | undefined> {
+        try {
+            const projects = await this.getProjects();
+            const matchingProject = projects.find((project: any) => 
+                workspacePath.includes(project.path) || project.path.includes(workspacePath)
+            );
+            return matchingProject?.id;
+        } catch (error) {
+            console.warn('Failed to detect project ID:', error);
+            return undefined;
+        }
+    }
+
+    // ================================
+    // Additional ML Engine Methods for VSCode Provider Commands
+    // ================================
+
+    /**
+     * Reinitialize ML Engine
+     */
+    async reinitializeMLEngine(): Promise<boolean> {
+        try {
+            const response = await this.client.post('/api/ml/reinitialize');
+            this.logAuditEvent('ml_reinit', 'success', 'ML Engine reinitialized successfully');
+            return response.data.success !== false;
+        } catch (error: any) {
+            this.logAuditEvent('ml_reinit', 'error', `ML Engine reinitialization failed: ${error.message}`);
+            console.error('Error reinitializing ML Engine:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Export ML usage data
+     */
+    async exportMLData(): Promise<any> {
+        try {
+            const response = await this.client.get('/api/ml/export');
+            this.logAuditEvent('ml_export', 'success', 'ML data exported successfully');
+            return response.data;
+        } catch (error: any) {
+            this.logAuditEvent('ml_export', 'error', `ML data export failed: ${error.message}`);
+            console.error('Error exporting ML data:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Reset ML learning data
+     */
+    async resetMLData(): Promise<boolean> {
+        try {
+            const response = await this.client.post('/api/ml/reset');
+            this.logAuditEvent('ml_reset', 'success', 'ML data reset successfully');
+            return response.data.success !== false;
+        } catch (error: any) {
+            this.logAuditEvent('ml_reset', 'error', `ML data reset failed: ${error.message}`);
+            console.error('Error resetting ML data:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get ML configuration
+     */
+    async getMLConfig(): Promise<any> {
+        try {
+            const response = await this.client.get('/api/ml/config');
+            return response.data || {};
+        } catch (error: any) {
+            console.error('Error getting ML config:', error);
+            return {};
+        }
+    }
+
+    /**
+     * Show ML statistics in VS Code
+     */
+    async showMLStatsInVSCode(): Promise<void> {
+        try {
+            const stats = await this.getMLStats();
+            const statsText = JSON.stringify(stats, null, 2);
+            
+            // Create a new untitled document to show stats
+            const document = await vscode.workspace.openTextDocument({
+                content: `# KeyKeeper ML Engine Statistics\n\n\`\`\`json\n${statsText}\n\`\`\``,
+                language: 'markdown'
+            });
+            
+            await vscode.window.showTextDocument(document);
+        } catch (error: any) {
+            vscode.window.showErrorMessage(`Failed to show ML stats: ${error.message}`);
         }
     }
 } 

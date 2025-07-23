@@ -251,14 +251,30 @@ export async function createKeyCommand(service: KeyKeeperService): Promise<void>
 export async function refreshKeysCommand(
     apiKeysProvider: ApiKeysProvider,
     projectsProvider: ProjectsProvider,
-    recentProvider: RecentProvider
+    recentProvider: RecentProvider,
+    documentationProvider?: any,
+    apiProvidersProvider?: any,
+    mlEngineProvider?: any
 ): Promise<void> {
     try {
-        await Promise.all([
+        const refreshPromises = [
             apiKeysProvider.refresh(),
             projectsProvider.refresh(),
             recentProvider.refresh()
-        ]);
+        ];
+
+        // Add optional providers if they exist
+        if (documentationProvider) {
+            refreshPromises.push(documentationProvider.refresh());
+        }
+        if (apiProvidersProvider) {
+            refreshPromises.push(apiProvidersProvider.refresh());
+        }
+        if (mlEngineProvider) {
+            refreshPromises.push(mlEngineProvider.refresh());
+        }
+
+        await Promise.all(refreshPromises);
 
         vscode.window.showInformationMessage('KeyKeeper data refreshed');
 

@@ -9,12 +9,14 @@ import {
   Copy,
   AlertCircle,
   Folder,
-  FileText
+  FileText,
+  BookOpen
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { useAppStore } from '../lib/store'
 import type { ApiKey } from '../lib/store'
 import VSCodeStatusIndicator from './VSCodeStatusIndicator'
+import DocumentationModal from './modals/DocumentationModal'
 
 export default function ApiKeyList() {
   const {
@@ -28,6 +30,7 @@ export default function ApiKeyList() {
 
   const [visibleKeys, setVisibleKeys] = useState<Set<string>>(new Set())
   const [vscodeStatuses, setVscodeStatuses] = useState<Record<string, string>>({})
+  const [showDocumentationModal, setShowDocumentationModal] = useState(false)
 
   // Carica gli stati VSCode per le chiavi importate da .env
   useEffect(() => {
@@ -131,6 +134,16 @@ export default function ApiKeyList() {
               {filteredKeys.length} {filteredKeys.length === 1 ? 'key' : 'keys'}
               {searchQuery && ` for "${searchQuery}"`}
             </p>
+          </div>
+          <div className="flex space-x-2">
+            <button
+              onClick={() => setShowDocumentationModal(true)}
+              className="flex items-center space-x-2 px-3 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:text-blue-300 dark:hover:bg-blue-900/20 rounded-lg transition-colors"
+              title="Add Documentation"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Add Docs</span>
+            </button>
           </div>
         </div>
       </div>
@@ -309,6 +322,12 @@ export default function ApiKeyList() {
           </div>
         )}
       </div>
+      
+      {/* Documentation Modal */}
+      <DocumentationModal
+        isOpen={showDocumentationModal}
+        onClose={() => setShowDocumentationModal(false)}
+      />
     </div>
   )
 }

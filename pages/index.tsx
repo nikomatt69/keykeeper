@@ -17,8 +17,9 @@ export default function Home() {
   useEffect(() => {
     const checkAuthStatus = async () => {
       try {
-        // Initialize native storage first
-        await useAppStore.getState().initializeNativeStorage()
+        // Initialize the complete app (native storage, ML engine, LLM services, etc.)
+        console.log('🚀 Starting KeyKeeper initialization...')
+        await useAppStore.getState().initializeApp()
         
         // Check if master password exists in vault
         const masterPasswordSet = await TauriAPI.isMasterPasswordSet()

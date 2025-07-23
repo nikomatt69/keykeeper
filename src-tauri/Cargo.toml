@@ -54,6 +54,28 @@ whoami = "1.4"
 tauri-plugin-deep-link = "2.4.0"
 tauri-plugin-keyring = "0.1.0"
 
+# ML Dependencies for local inference with llm.rs
+anyhow = "1.0"
+tracing = "0.1"
+llm = { version = "1.3.1", features = ["full"] }
+tokenizers = "0.21.4-dev.0"
+ndarray = "0.16.1"
+ndarray-npy = "0.9.1"
+numpy = { version = "0.25.0", optional = true }
+thiserror = "2.0.12"
+# Candle dependencies for existing ML functionality
+candle-core = "0.8.0"
+candle-nn = "0.8.0"
+candle-transformers = "0.8.0"
+hf-hub = { version = "0.3.0", features = ["tokio"] }
+
+# API Documentation Scraping and Generation
+reqwest = { version = "0.11", features = ["json"] }
+scraper = "0.19"
+regex = "1.10"
+md5 = "0.7"
+url = "2.5"
+
 [features]
 # This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
 custom-protocol = ["tauri/custom-protocol"]

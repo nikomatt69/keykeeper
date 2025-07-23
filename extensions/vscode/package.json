@@ -96,6 +96,96 @@
                 "title": "Auto-Sync Workspace",
                 "category": "KeyKeeper",
                 "icon": "$(sync)"
+            },
+            {
+                "command": "keykeeper.autoDetectAndGenerate",
+                "title": "🤖 Auto-Detect APIs and Generate Config",
+                "category": "KeyKeeper",
+                "icon": "$(wand)"
+            },
+            {
+                "command": "keykeeper.generateProviderConfig",
+                "title": "📝 Generate API Configuration",
+                "category": "KeyKeeper",
+                "icon": "$(file-code)"
+            },
+            {
+                "command": "keykeeper.smartGenerate",
+                "title": "✨ Smart Generate (Context-Aware)",
+                "category": "KeyKeeper",
+                "icon": "$(sparkle)"
+            },
+            {
+                "command": "keykeeper.showDocumentation",
+                "title": "📚 Show API Documentation",
+                "category": "KeyKeeper",
+                "icon": "$(book)"
+            },
+            {
+                "command": "keykeeper.addDocumentation",
+                "title": "📝 Add Documentation for Current API",
+                "category": "KeyKeeper",
+                "icon": "$(file-add)"
+            },
+            {
+                "command": "keykeeper.searchDocumentation",
+                "title": "🔍 Search API Documentation",
+                "category": "KeyKeeper",
+                "icon": "$(search)"
+            },
+            {
+                "command": "keykeeper.checkMLStatus",
+                "title": "🤖 Check ML Engine Status",
+                "category": "KeyKeeper",
+                "icon": "$(pulse)"
+            },
+            {
+                "command": "keykeeper.initializeMLEngine",
+                "title": "🚀 Initialize ML Engine",
+                "category": "KeyKeeper",
+                "icon": "$(play)"
+            },
+            {
+                "command": "keykeeper.reinitializeMLEngine",
+                "title": "🔄 Reinitialize ML Engine",
+                "category": "KeyKeeper",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "keykeeper.getMLSuggestions",
+                "title": "💡 Get Smart Suggestions",
+                "category": "KeyKeeper",
+                "icon": "$(lightbulb)"
+            },
+            {
+                "command": "keykeeper.detectContext",
+                "title": "🔍 Detect Current Context",
+                "category": "KeyKeeper",
+                "icon": "$(search-fuzzy)"
+            },
+            {
+                "command": "keykeeper.recordMLUsage",
+                "title": "📊 Record ML Usage",
+                "category": "KeyKeeper",
+                "icon": "$(graph-line)"
+            },
+            {
+                "command": "keykeeper.showMLStats",
+                "title": "📈 Show ML Statistics",
+                "category": "KeyKeeper",
+                "icon": "$(graph)"
+            },
+            {
+                "command": "keykeeper.exportMLData",
+                "title": "📤 Export ML Data",
+                "category": "KeyKeeper",
+                "icon": "$(export)"
+            },
+            {
+                "command": "keykeeper.resetMLData",
+                "title": "🗑️ Reset ML Data",
+                "category": "KeyKeeper",
+                "icon": "$(trash)"
             }
         ],
         "keybindings": [
@@ -110,6 +200,29 @@
                 "key": "ctrl+shift+i",
                 "mac": "cmd+shift+i",
                 "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.autoDetectAndGenerate",
+                "key": "ctrl+shift+g",
+                "mac": "cmd+shift+g",
+                "when": "resourceExtname == .env"
+            },
+            {
+                "command": "keykeeper.smartGenerate",
+                "key": "ctrl+alt+g",
+                "mac": "cmd+alt+g",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.showDocumentation",
+                "key": "ctrl+shift+d",
+                "mac": "cmd+shift+d",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.searchDocumentation",
+                "key": "ctrl+shift+f",
+                "mac": "cmd+shift+f"
             }
         ],
         "views": {
@@ -117,17 +230,32 @@
                 {
                     "id": "keykeeperProjects",
                     "name": "Projects",
-                    "when": "keykeeper:enabled"
+                    "icon": "$(folder)"
                 },
                 {
                     "id": "keykeeperKeys",
                     "name": "API Keys",
-                    "when": "keykeeper:enabled"
+                    "icon": "$(key)"
                 },
                 {
                     "id": "keykeeperRecent",
                     "name": "Recent",
-                    "when": "keykeeper:enabled"
+                    "icon": "$(clock)"
+                },
+                {
+                    "id": "keykeeperDocumentation",
+                    "name": "Documentation",
+                    "icon": "$(book)"
+                },
+                {
+                    "id": "keykeeperApiProviders",
+                    "name": "API Providers",
+                    "icon": "$(server)"
+                },
+                {
+                    "id": "keykeeperMLEngine",
+                    "name": "ML Engine",
+                    "icon": "$(pulse)"
                 }
             ]
         },
@@ -173,6 +301,24 @@
                     "command": "keykeeper.syncProject",
                     "when": "view == keykeeperProjects",
                     "group": "navigation"
+                },
+                {
+                    "command": "keykeeper.reinitializeMLEngine",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(refresh)"
+                },
+                {
+                    "command": "keykeeper.getMLSuggestions",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(lightbulb)"
+                },
+                {
+                    "command": "keykeeper.showMLStats",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(graph)"
                 }
             ],
             "view/item/context": [
