@@ -5,7 +5,7 @@ import { useAppStore } from '../../lib/store'
 import { ApiProviderService, GeneratedConfig } from '../../lib/services/apiProviderService'
 import { useMLEngine, useLLMDocumentation } from '../../lib/hooks/useMLEngine'
 import { invoke } from '@tauri-apps/api/core'
-import type { GeneratedConfigTemplate } from '../../lib/tauri-api'
+import type { ContextInfo, GeneratedConfigTemplate } from '../../lib/tauri-api'
 
 interface ConfigGenerationModalProps {
   isOpen: boolean
@@ -37,11 +37,21 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
   const [selectedFeatures, setSelectedFeatures] = useState<string[]>([])
   const [activeTab, setActiveTab] = useState<'analysis' | 'generation' | 'preview'>('analysis')
   const [useLLMGeneration, setUseLLMGeneration] = useState(true)
-  
+  const frameworkToLanguageMap = {
+    'react': 'typescript',  // or 'javascript' based on your needs
+    'vue': 'typescript',    // or 'javascript'
+    'angular': 'typescript',
+    'node': 'javascript',
+    'express': 'javascript',
+    'next': 'typescript',
+    'nuxt': 'typescript'
+    // Add other frameworks as needed
+  };
+
   const { saveDocumentation } = useAppStore()
-  const { 
-    llmAvailable, 
-    generateConfigTemplate, 
+  const {
+    llmAvailable,
+    generateConfigTemplate,
     getConfigRecommendations,
     detectContext
   } = useMLEngine({ enableLLM: true })
@@ -83,19 +93,19 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
       let llmInsights: string[] = []
       let securityRecommendations: string[] = []
       let bestPractices: string[] = []
-      
+
       if (llmAvailable) {
         try {
-          const configRecommendations = await getConfigRecommendations(apiKey.service, contextInfo)
+          const configRecommendations = await getConfigRecommendations(apiKey.service, contextInfo.active_app as ContextInfo)
           llmInsights = configRecommendations.map(rec => rec.reasoning).slice(0, 3)
-          
+
           // Get security recommendations from ML analysis
           securityRecommendations = [
             'Store API keys in environment variables',
             'Enable rate limiting in production',
             'Implement proper error handling'
           ]
-          
+
           bestPractices = [
             'Use TypeScript for better type safety',
             'Implement retry logic for API calls',
@@ -156,7 +166,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
   const getRecommendedFeatures = (service: string): string[] => {
     const serviceLower = service.toLowerCase()
     const features = ['basic-setup']
-    
+
     if (serviceLower.includes('auth')) {
       features.push('authentication', 'session-management')
     }
@@ -169,7 +179,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
     if (serviceLower.includes('supabase') || serviceLower.includes('database')) {
       features.push('database-types', 'real-time', 'auth-integration')
     }
-    
+
     return features
   }
 
@@ -196,19 +206,30 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
           apiKey.environment,
           selectedFeatures
         )
-        
+
         if (llmTemplate) {
           setLlmConfigTemplate(llmTemplate)
           // Convert LLM template to legacy format for compatibility
           const config: GeneratedConfig = {
-            files: llmTemplate.files.map(file => ({
-              path: file.path,
-              content: file.content,
-              language: file.file_type === 'code' ? selectedFramework : 'text',
-              fileType: file.file_type
-            })),
+            files: llmTemplate.files.map(file => {
+              // Ensure file_type is one of the allowed values
+              const fileType: 'config' | 'code' | 'documentation' =
+                file.file_type === 'config' || file.file_type === 'code' || file.file_type === 'documentation'
+                  ? file.file_type
+                  : 'documentation'; // Default to 'documentation' if type is unknown
+
+              return {
+                path: file.path,
+                file_type: fileType,
+                content: file.content,
+                language: fileType === 'code'  // Only set language for code files
+                  ? (frameworkToLanguageMap[selectedFramework as keyof typeof frameworkToLanguageMap] || 'typescript')
+                  : 'text'
+              };
+            }),
             setupInstructions: llmTemplate.setup_instructions,
-            dependencies: llmTemplate.dependencies
+            dependencies: llmTemplate.dependencies,
+            nextSteps: [] // Add empty nextSteps array as required by the interface
           }
           setGeneratedConfig(config)
         } else {
@@ -233,11 +254,11 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
         try {
           console.log('Falling back to traditional generation method...')
           setUseLLMGeneration(false)
-          
+
           // Recreate envVars for fallback
           const envVars: Record<string, string> = {}
           envVars[apiKey.name] = apiKey.key
-          
+
           // Traditional generation fallback
           const config = await ApiProviderService.generateConfiguration({
             providerId: mlAnalysis.provider.toLowerCase(),
@@ -266,12 +287,12 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
         `# ${mlAnalysis.provider} Configuration`,
         '',
         '## Generated Files',
-        ...generatedConfig.files.map(file => 
+        ...generatedConfig.files.map(file =>
           `### ${file.path}\n\`\`\`${file.language}\n${file.content}\n\`\`\``
         ),
         '',
         '## Setup Instructions',
-        ...generatedConfig.setupInstructions.map((instruction, index) => 
+        ...generatedConfig.setupInstructions.map((instruction, index) =>
           `${index + 1}. ${instruction}`
         ),
         '',
@@ -329,7 +350,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+        className="flex fixed inset-0 z-50 justify-center items-center p-4 backdrop-blur-sm bg-black/50"
         onClick={onClose}
       >
         <motion.div
@@ -340,9 +361,9 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
           onClick={e => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
+              <div className="flex justify-center items-center w-10 h-10 bg-purple-100 rounded-lg dark:bg-purple-900/30">
                 <Wand2 className="w-5 h-5 text-purple-600 dark:text-purple-400" />
               </div>
               <div>
@@ -356,7 +377,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
             </div>
             <button
               onClick={onClose}
-              className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors"
+              className="p-2 rounded-lg transition-colors hover:bg-gray-100 dark:hover:bg-gray-700"
             >
               <X className="w-5 h-5 text-gray-500" />
             </button>
@@ -364,7 +385,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
           <div className="flex h-[600px]">
             {/* Left Panel - Tabs */}
-            <div className="w-80 border-r border-gray-200 dark:border-gray-700 p-4">
+            <div className="p-4 w-80 border-r border-gray-200 dark:border-gray-700">
               <div className="space-y-2">
                 {[
                   { id: 'analysis', label: 'ML Analysis', icon: Sparkles, completed: !!mlAnalysis },
@@ -375,25 +396,22 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
                     disabled={tab.id === 'generation' && !mlAnalysis}
-                    className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left transition-colors ${
-                      activeTab === tab.id
-                        ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
-                        : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
-                    } ${tab.id === 'generation' && !mlAnalysis ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    className={`w-full flex items-center space-x-3 p-3 rounded-lg text-left transition-colors ${activeTab === tab.id
+                      ? 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400'
+                      : 'hover:bg-gray-50 dark:hover:bg-gray-700/50 text-gray-700 dark:text-gray-300'
+                      } ${tab.id === 'generation' && !mlAnalysis ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                      tab.completed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
-                    }`}>
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${tab.completed ? 'bg-green-100 dark:bg-green-900/30' : 'bg-gray-100 dark:bg-gray-700'
+                      }`}>
                       {tab.completed ? (
                         <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-400" />
                       ) : (
-                        <tab.icon className={`w-4 h-4 ${
-                          activeTab === tab.id ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'
-                        }`} />
+                        <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400'
+                          }`} />
                       )}
                     </div>
                     <div>
-                      <div className="font-medium text-sm">{tab.label}</div>
+                      <div className="text-sm font-medium">{tab.label}</div>
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {tab.completed ? 'Completed' : 'Pending'}
                       </div>
@@ -403,8 +421,8 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
               </div>
 
               {/* Key Info */}
-              <div className="mt-6 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                <h4 className="font-medium text-sm text-gray-900 dark:text-white mb-2">API Key Info</h4>
+              <div className="p-3 mt-6 bg-gray-50 rounded-lg dark:bg-gray-700/50">
+                <h4 className="mb-2 text-sm font-medium text-gray-900 dark:text-white">API Key Info</h4>
                 <div className="space-y-1 text-xs text-gray-600 dark:text-gray-400">
                   <div><strong>Name:</strong> {apiKey?.name}</div>
                   <div><strong>Service:</strong> {apiKey?.service}</div>
@@ -414,32 +432,32 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
             </div>
 
             {/* Right Panel - Content */}
-            <div className="flex-1 p-6 overflow-y-auto">
+            <div className="overflow-y-auto flex-1 p-6">
               {activeTab === 'analysis' && (
                 <div className="space-y-6">
                   <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                     ML Analysis
                   </h3>
-                  
+
                   {isAnalyzing ? (
-                    <div className="flex items-center justify-center py-12">
+                    <div className="flex justify-center items-center py-12">
                       <div className="text-center">
-                        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-purple-600" />
+                        <Loader2 className="mx-auto mb-3 w-8 h-8 text-purple-600 animate-spin" />
                         <p className="text-gray-600 dark:text-gray-400">Analyzing API key context...</p>
                       </div>
                     </div>
                   ) : mlAnalysis ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Provider Detection</h4>
+                        <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700/50">
+                          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Provider Detection</h4>
                           <div className="flex items-center space-x-2">
                             <div className="text-2xl font-bold text-purple-600 dark:text-purple-400">
                               {mlAnalysis.provider}
                             </div>
                             {llmAvailable && (
-                              <div className="flex items-center px-2 py-1 bg-green-100 dark:bg-green-900/30 rounded-full">
-                                <Bot className="w-3 h-3 text-green-600 dark:text-green-400 mr-1" />
+                              <div className="flex items-center px-2 py-1 bg-green-100 rounded-full dark:bg-green-900/30">
+                                <Bot className="mr-1 w-3 h-3 text-green-600 dark:text-green-400" />
                                 <span className="text-xs text-green-700 dark:text-green-300">AI Enhanced</span>
                               </div>
                             )}
@@ -448,8 +466,8 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                             {Math.round(mlAnalysis.confidence * 100)}% confidence
                           </div>
                         </div>
-                        <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white mb-2">Config Type</h4>
+                        <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700/50">
+                          <h4 className="mb-2 font-medium text-gray-900 dark:text-white">Config Type</h4>
                           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
                             {mlAnalysis.configType}
                           </div>
@@ -459,13 +477,13 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                         </div>
                       </div>
 
-                      <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4">
-                        <h4 className="font-medium text-gray-900 dark:text-white mb-3">Recommended Features</h4>
+                      <div className="p-4 bg-gray-50 rounded-lg dark:bg-gray-700/50">
+                        <h4 className="mb-3 font-medium text-gray-900 dark:text-white">Recommended Features</h4>
                         <div className="flex flex-wrap gap-2">
                           {mlAnalysis.recommendedFeatures.map(feature => (
                             <span
                               key={feature}
-                              className="px-2 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 rounded-md text-xs font-medium"
+                              className="px-2 py-1 text-xs font-medium text-purple-700 bg-purple-100 rounded-md dark:bg-purple-900/30 dark:text-purple-300"
                             >
                               {feature.replace('-', ' ')}
                             </span>
@@ -475,9 +493,9 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
                       {/* LLM Insights */}
                       {mlAnalysis.llmInsights.length > 0 && (
-                        <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 rounded-lg p-4">
-                          <h4 className="font-medium text-gray-900 dark:text-white mb-3 flex items-center">
-                            <Sparkles className="w-4 h-4 mr-2 text-purple-600 dark:text-purple-400" />
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg dark:from-blue-900/20 dark:to-purple-900/20">
+                          <h4 className="flex items-center mb-3 font-medium text-gray-900 dark:text-white">
+                            <Sparkles className="mr-2 w-4 h-4 text-purple-600 dark:text-purple-400" />
                             AI Insights
                           </h4>
                           <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
@@ -493,8 +511,8 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
                       {/* Security Recommendations */}
                       {mlAnalysis.securityRecommendations.length > 0 && (
-                        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-4">
-                          <h4 className="font-medium text-amber-900 dark:text-amber-100 mb-3">Security Recommendations</h4>
+                        <div className="p-4 bg-amber-50 rounded-lg dark:bg-amber-900/20">
+                          <h4 className="mb-3 font-medium text-amber-900 dark:text-amber-100">Security Recommendations</h4>
                           <ul className="space-y-1 text-sm text-amber-800 dark:text-amber-200">
                             {mlAnalysis.securityRecommendations.map((rec, index) => (
                               <li key={index} className="flex items-start space-x-2">
@@ -508,15 +526,15 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
                       <button
                         onClick={() => setActiveTab('generation')}
-                        className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+                        className="flex justify-center items-center px-4 py-3 space-x-2 w-full text-white bg-purple-600 rounded-lg transition-colors hover:bg-purple-700"
                       >
                         <Code className="w-4 h-4" />
                         <span>Configure Generation</span>
                       </button>
                     </div>
                   ) : (
-                    <div className="text-center py-12">
-                      <Sparkles className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                    <div className="py-12 text-center">
+                      <Sparkles className="mx-auto mb-3 w-12 h-12 text-gray-400" />
                       <p className="text-gray-600 dark:text-gray-400">Analysis will start automatically</p>
                     </div>
                   )}
@@ -532,13 +550,13 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                   <div className="space-y-4">
                     {/* LLM Generation Toggle */}
                     {llmAvailable && (
-                      <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 rounded-lg p-4 mb-4">
+                      <div className="p-4 mb-4 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg dark:from-purple-900/20 dark:to-blue-900/20">
                         <label className="flex items-center space-x-3">
                           <input
                             type="checkbox"
                             checked={useLLMGeneration}
                             onChange={(e) => setUseLLMGeneration(e.target.checked)}
-                            className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                            className="w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                           />
                           <div className="flex items-center space-x-2">
                             <Bot className="w-4 h-4 text-purple-600 dark:text-purple-400" />
@@ -547,20 +565,20 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                             </span>
                           </div>
                         </label>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 ml-7">
+                        <p className="mt-1 ml-7 text-xs text-gray-600 dark:text-gray-400">
                           Generate more comprehensive configurations with LLM insights
                         </p>
                       </div>
                     )}
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         Framework
                       </label>
                       <select
                         value={selectedFramework}
                         onChange={(e) => setSelectedFramework(e.target.value)}
-                        className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                        className="px-3 py-2 w-full text-gray-900 bg-white rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
                       >
                         <option value="nextjs">Next.js</option>
                         <option value="react">React</option>
@@ -572,7 +590,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         Features to Include
                       </label>
                       <div className="grid grid-cols-2 gap-2">
@@ -591,7 +609,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                                   setSelectedFeatures(selectedFeatures.filter(f => f !== feature))
                                 }
                               }}
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                              className="text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                             />
                             <span className="text-sm text-gray-700 dark:text-gray-300">
                               {feature.replace('-', ' ')}
@@ -604,7 +622,7 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                     <button
                       onClick={generateConfiguration}
                       disabled={isGenerating}
-                      className="w-full flex items-center justify-center space-x-2 px-4 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50"
+                      className="flex justify-center items-center px-4 py-3 space-x-2 w-full text-white bg-purple-600 rounded-lg transition-colors hover:bg-purple-700 disabled:opacity-50"
                     >
                       {isGenerating ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
@@ -619,14 +637,14 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
               {activeTab === 'preview' && generatedConfig && (
                 <div className="space-y-6">
-                  <div className="flex items-center justify-between">
+                  <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-3">
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
                         Generated Configuration
                       </h3>
                       {useLLMGeneration && llmAvailable && (
-                        <div className="flex items-center px-2 py-1 bg-purple-100 dark:bg-purple-900/30 rounded-full">
-                          <Bot className="w-3 h-3 text-purple-600 dark:text-purple-400 mr-1" />
+                        <div className="flex items-center px-2 py-1 bg-purple-100 rounded-full dark:bg-purple-900/30">
+                          <Bot className="mr-1 w-3 h-3 text-purple-600 dark:text-purple-400" />
                           <span className="text-xs text-purple-700 dark:text-purple-300">AI Generated</span>
                         </div>
                       )}
@@ -634,14 +652,14 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                     <div className="flex items-center space-x-2">
                       <button
                         onClick={saveConfigAsDocumentation}
-                        className="flex items-center space-x-2 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="flex items-center px-3 py-2 space-x-2 text-white bg-blue-600 rounded-lg transition-colors hover:bg-blue-700"
                       >
                         <Save className="w-4 h-4" />
                         <span>Save as Docs</span>
                       </button>
                       <button
                         onClick={downloadConfig}
-                        className="flex items-center space-x-2 px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                        className="flex items-center px-3 py-2 space-x-2 text-white bg-green-600 rounded-lg transition-colors hover:bg-green-700"
                       >
                         <Download className="w-4 h-4" />
                         <span>Download All</span>
@@ -651,26 +669,26 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
 
                   <div className="space-y-4">
                     {generatedConfig.files.map((file, index) => (
-                      <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg">
-                        <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-700/50">
+                      <div key={index} className="rounded-lg border border-gray-200 dark:border-gray-700">
+                        <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-700/50">
                           <div className="flex items-center space-x-2">
                             <FileText className="w-4 h-4 text-gray-500" />
-                            <span className="font-medium text-sm text-gray-900 dark:text-white">
+                            <span className="text-sm font-medium text-gray-900 dark:text-white">
                               {file.path}
                             </span>
-                            <span className="px-2 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded text-xs">
+                            <span className="px-2 py-1 text-xs text-blue-700 bg-blue-100 rounded dark:bg-blue-900/30 dark:text-blue-300">
                               {file.language}
                             </span>
                           </div>
                           <button
                             onClick={() => copyToClipboard(file.content)}
-                            className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded"
+                            className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-600"
                           >
                             <Copy className="w-4 h-4 text-gray-500" />
                           </button>
                         </div>
                         <div className="p-4">
-                          <pre className="text-xs text-gray-800 dark:text-gray-200 bg-gray-900 dark:bg-gray-800 rounded p-3 overflow-x-auto">
+                          <pre className="overflow-x-auto p-3 text-xs text-gray-800 bg-gray-900 rounded dark:text-gray-200 dark:bg-gray-800">
                             <code>{file.content}</code>
                           </pre>
                         </div>
@@ -679,9 +697,9 @@ export default function ConfigGenerationModal({ isOpen, onClose, apiKey }: Confi
                   </div>
 
                   {generatedConfig.setupInstructions.length > 0 && (
-                    <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
-                      <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Setup Instructions</h4>
-                      <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800 dark:text-blue-200">
+                    <div className="p-4 bg-blue-50 rounded-lg dark:bg-blue-900/20">
+                      <h4 className="mb-2 font-medium text-blue-900 dark:text-blue-100">Setup Instructions</h4>
+                      <ol className="space-y-1 text-sm list-decimal list-inside text-blue-800 dark:text-blue-200">
                         {generatedConfig.setupInstructions.map((instruction, index) => (
                           <li key={index}>{instruction}</li>
                         ))}

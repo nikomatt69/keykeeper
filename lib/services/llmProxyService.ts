@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core';
-import { 
-  TauriAPI, 
-  LLMEngineConfig, 
+import {
+  TauriAPI,
+  LLMEngineConfig,
   DocumentationGenerationRequest,
   GeneratedDocumentation,
   CodeExample,
@@ -71,7 +71,7 @@ export class LLMProxyService {
   ): Promise<LLMResponse> {
     const cacheKey = this.getCacheKey(prompt, context);
     const cached = this.cache.get(cacheKey);
-    
+
     if (cached && this.isCacheValid(Date.now())) {
       console.log('Returning cached LLM response');
       return cached;
@@ -79,13 +79,13 @@ export class LLMProxyService {
 
     try {
       const mergedConfig = { ...this.config, ...options };
-      
-      console.log('Sending request to LLM proxy:', { 
+
+      console.log('Sending request to LLM proxy:', {
         promptLength: prompt.length,
         contextKeys: Object.keys(context),
         config: { ...mergedConfig, apiKey: mergedConfig.apiKey ? '***' : undefined }
       });
-      
+
       // Call the Tauri backend to process with LLM
       const response = await invoke<LLMResponse>('process_with_llm', {
         prompt,
@@ -116,9 +116,9 @@ export class LLMProxyService {
   ): Promise<Record<string, any>> {
     const prompt = `Extract and structure the following documentation content according to the provided schema. 
     Return only the structured data in JSON format.\n\nContent:\n${content}\n\nSchema:\n${JSON.stringify(structure, null, 2)}`;
-    
+
     const response = await this.processWithLLM(prompt, { structure }, options);
-    
+
     try {
       return JSON.parse(response.content);
     } catch (error) {
@@ -134,7 +134,7 @@ export class LLMProxyService {
   ): Promise<string> {
     const prompt = `Please summarize the following documentation in ${maxLength} characters or less, 
     focusing on key functionality, setup instructions, and important configuration options.\n\n${content}`;
-    
+
     const response = await this.processWithLLM(prompt, { maxLength }, options);
     return response.content;
   }
@@ -146,7 +146,7 @@ export class LLMProxyService {
   ): Promise<string> {
     const prompt = `Generate comprehensive documentation for the following ${language} code. 
     Include function descriptions, parameters, return values, and usage examples.\n\n${code}`;
-    
+
     const response = await this.processWithLLM(prompt, { language }, options);
     return response.content;
   }
@@ -257,7 +257,7 @@ export class LLMProxyService {
     options: Partial<LLMProxyConfig> = {}
   ): Promise<string> {
     const prompt = `Generate a ${framework} configuration template for ${provider} API in ${environment} environment with features: ${features.join(', ')}`;
-    
+
     try {
       const response = await this.processWithLLM(prompt, { provider, framework, environment, features }, options);
       return response.content;
@@ -274,7 +274,7 @@ export class LLMProxyService {
     try {
       this.config.useLocalLLM = true;
       this.config.llmEngineConfig = config;
-      
+
       const result = await TauriAPI.initializeLLMEngine(config);
       console.log('✅ Local LLM engine initialized:', result);
       return true;
@@ -343,12 +343,12 @@ export class LLMProxyService {
   private parseCodeExamples(content: string, languages: string[]): CodeExample[] {
     const examples: CodeExample[] = [];
     const codeBlocks = content.split('```').filter((_, index) => index % 2 === 1);
-    
+
     codeBlocks.forEach((block, index) => {
       const lines = block.trim().split('\n');
       const language = lines[0] || languages[index] || 'javascript';
       const code = lines.slice(1).join('\n');
-      
+
       examples.push({
         language,
         title: `${language} Example`,
@@ -364,7 +364,7 @@ export class LLMProxyService {
     const sections: DocumentationSection[] = [];
     const lines = content.split('\n');
     let currentSection: Partial<DocumentationSection> | null = null;
-    
+
     lines.forEach(line => {
       if (line.startsWith('#')) {
         // Save previous section
@@ -376,7 +376,7 @@ export class LLMProxyService {
             type: 'overview'
           });
         }
-        
+
         // Start new section
         const level = (line.match(/^#+/) || ['#'])[0].length;
         currentSection = {
@@ -388,17 +388,17 @@ export class LLMProxyService {
         currentSection.content = (currentSection.content || '') + line + '\n';
       }
     });
-    
+
     // Add final section
-    if (currentSection && currentSection.title) {
+    if (currentSection && currentSection) {
       sections.push({
-        title: currentSection.title,
-        content: currentSection.content || '',
-        level: currentSection.level || 1,
+        title: currentSection,
+        content: currentSection || '',
+        level: currentSection || 1,
         type: 'overview'
       });
     }
-    
+
     return sections;
   }
 
@@ -468,10 +468,10 @@ ${provider.toUpperCase()}_TIMEOUT=30000
   public async initializeService(): Promise<boolean> {
     try {
       console.log('🔧 Initializing LLM Proxy Service...')
-      
+
       // Check if local LLM is available
       const localAvailable = await this.isLocalLLMAvailable()
-      
+
       if (localAvailable) {
         console.log('✅ Local LLM engine detected and ready')
         this.config.useLocalLLM = true
@@ -479,10 +479,10 @@ ${provider.toUpperCase()}_TIMEOUT=30000
         console.log('⚠️ Local LLM not available, using remote fallback mode')
         this.config.useLocalLLM = false
       }
-      
+
       // Clear any existing cache to start fresh
       this.clearCache()
-      
+
       console.log('✅ LLM Proxy Service initialized successfully')
       return true
     } catch (error) {

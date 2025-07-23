@@ -1,14 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
-import { 
-    MLService, 
-    ContextInfo, 
-    MLPrediction, 
-    KeySuggestion, 
-    MLConfig 
+import {
+    MLService,
+    ContextInfo,
+    MLPrediction,
+    KeySuggestion,
+    MLConfig
 } from '../services/mlService';
-import { 
-    GeneratedDocumentation, 
-    CodeExample, 
+import {
+    GeneratedDocumentation,
+    CodeExample,
     GeneratedConfigTemplate,
     EnhancedMLPrediction,
     DocumentationSuggestion,
@@ -81,14 +81,14 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
         try {
             setIsLoading(true);
             setError(null);
-            
+
             const success = await MLService.initialize(initConfig || config);
             setIsInitialized(success);
-            
+
             if (!success) {
                 setError('Failed to initialize ML Engine');
             }
-            
+
             return success;
         } catch (err) {
             const errorMessage = err instanceof Error ? err.message : 'Unknown initialization error';
@@ -102,13 +102,13 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
 
     // Get smart suggestions
     const getSuggestions = useCallback(async (
-        context: ContextInfo, 
+        context: ContextInfo,
         availableKeys: string[]
     ): Promise<void> => {
         try {
             setIsLoading(true);
             setError(null);
-            
+
             const result = await MLService.getSmartSuggestions(context, availableKeys);
             setPrediction(result);
         } catch (err) {
@@ -122,8 +122,8 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
 
     // Record usage for learning
     const recordUsage = useCallback(async (
-        keyId: string, 
-        context: ContextInfo, 
+        keyId: string,
+        context: ContextInfo,
         success: boolean
     ): Promise<void> => {
         try {
@@ -166,13 +166,13 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
 
     // Enhanced suggestions with LLM insights
     const getEnhancedSuggestions = useCallback(async (
-        context: ContextInfo, 
+        context: ContextInfo,
         availableKeys: string[]
     ): Promise<void> => {
         try {
             setIsLoading(true);
             setError(null);
-            
+
             const result = await MLService.getEnhancedMLPrediction(context, availableKeys);
             setEnhancedPrediction(result);
             setPrediction(result); // Also set the basic prediction
@@ -187,8 +187,8 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
 
     // Generate documentation using LLM
     const generateDocumentation = useCallback(async (
-        provider: string, 
-        context: string, 
+        provider: string,
+        context: string,
         apiKeyFormat?: string
     ): Promise<GeneratedDocumentation | null> => {
         try {
@@ -206,7 +206,7 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
 
     // Generate usage examples
     const generateUsageExamples = useCallback(async (
-        provider: string, 
+        provider: string,
         apiKeyFormat: string
     ): Promise<CodeExample[]> => {
         try {
@@ -303,7 +303,7 @@ export function useMLEngine(options: UseMLEngineOptions = {}): UseMLEngineReturn
     useEffect(() => {
         if (enableLLM && isInitialized) {
             checkLLMStatus();
-            
+
             // Initialize LLM if config is provided
             if (llmConfig) {
                 initializeLLM(llmConfig);
@@ -423,15 +423,15 @@ export function useMLAnalytics() {
     const getKeyUsageScore = useCallback((keyId: string): number => {
         const keyStats = stats[keyId];
         if (!keyStats) return 0;
-        
+
         const usageCount = keyStats.usage_count || 0;
         const successRate = keyStats.success_rate || 0;
-        
+
         // Simple scoring algorithm: usage frequency * success rate
         return usageCount * successRate;
     }, [stats]);
 
-    const getTopKeys = useCallback((limit = 5): Array<{keyId: string, score: number}> => {
+    const getTopKeys = useCallback((limit = 5): Array<{ keyId: string, score: number }> => {
         return Object.keys(stats)
             .map(keyId => ({
                 keyId,
@@ -451,7 +451,7 @@ export function useMLAnalytics() {
         const rates = Object.values(stats)
             .map((keyStats: any) => keyStats.success_rate || 0)
             .filter(rate => rate > 0);
-        
+
         if (rates.length === 0) return 0;
         return rates.reduce((sum, rate) => sum + rate, 0) / rates.length;
     }, [stats]);
@@ -481,7 +481,7 @@ export function useMLSecurity() {
     const analyzeContext = useCallback((context: ContextInfo) => {
         const { risk, reasons } = MLService.analyzeSecurityRisk(context);
         const recommendations = MLService.getSecurityRecommendations(context);
-        
+
         setSecurityAnalysis({
             riskLevel: risk,
             recommendations: [...reasons, ...recommendations],
@@ -532,7 +532,7 @@ export function useLLMDocumentation() {
             // Generate code examples if requested
             if (options.includeExamples && options.apiKeyFormat) {
                 const examples = await llmProxy.generateCodeExamples(
-                    provider, 
+                    provider,
                     options.apiKeyFormat
                 );
                 setCodeExamples(examples);
@@ -566,7 +566,7 @@ export function useLLMDocumentation() {
             setError(null);
 
             const enhanced = await llmProxy.enhanceDocumentation(docId, content, enhancementType);
-            
+
             // Update the generated docs with enhanced content
             if (generatedDocs) {
                 setGeneratedDocs({

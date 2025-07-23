@@ -33,6 +33,27 @@ interface AllDocumentationModalProps {
   onClose: () => void;
 }
 
+interface NativeDocumentation {
+  id: string;
+  title: string;
+  content: string;
+  doc_type: string;
+  // Make sections optional since it's missing in the actual type
+  sections?: Array<{
+    id: string;
+    title: string;
+    content: string;
+    level: number;
+    anchor?: string;
+  }>;
+  // Add other fields that might exist
+  provider_id?: string;
+  url?: string;
+  tags?: string[];
+  updated_at?: string;
+  language?: string;
+  [key: string]: any; // For any additional fields
+}
 interface LLMGenerationOptions {
   provider: string;
   context: string;
@@ -61,7 +82,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
     framework: 'react',
     environment: 'development'
   });
-  
+
   const { apiKeys, saveDocumentation } = useAppStore();
   const { llmAvailable, generateDocumentation } = useMLEngine({ enableLLM: true });
   const {
@@ -78,10 +99,28 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
   const loadDocumentations = async () => {
     setIsLoading(true);
     try {
-      // Get all documentations from the native store
-      const allDocs = await TauriAPI.getNativeDocumentation();
-      setDocumentations(allDocs);
-      setFilteredDocs(allDocs);
+      const allDocs: NativeDocumentation[] = await TauriAPI.getNativeDocumentation();
+      const processedDocs = allDocs.map(doc => {
+        // Create a new object with ApiDocumentation shape
+        const processedDoc: ApiDocumentation = {
+          id: doc.id,
+          provider_id: doc.provider_id || 'unknown', // Provide a default if missing
+          title: doc.title,
+          url: doc.url || '#', // Provide a default if missing
+          content: doc.content,
+          sections: (doc.sections || []).map(section => ({
+            ...section,
+            content: section.content.replace(/\n/g, '\n')
+          })),
+          tags: doc.tags || [],
+          last_updated: doc.updated_at || new Date().toISOString(), // Use updated_at if it exists
+          language: doc.language || 'en'
+        };
+        return processedDoc;
+      });
+
+      setDocumentations(processedDocs);
+      setFilteredDocs(processedDocs);
     } catch (error) {
       console.error('Failed to load documentations:', error);
       setDocumentations([]);
@@ -89,8 +128,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
     } finally {
       setIsLoading(false);
     }
-  };
-
+  }
   // Filter documentations based on search query
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -180,17 +218,17 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
 
   // Export documentation as markdown
   const handleExportDocumentation = (doc: ApiDocumentation | GeneratedDocumentation) => {
-    const content = 'sections' in doc && doc.sections ? 
+    const content = 'sections' in doc && doc.sections ?
       doc.sections.map(section => `## ${section.title}\n\n${section.content}`).join('\n\n') :
       doc.content;
-    
-    const markdown = `# ${doc.title || 'Documentation'}\n\n${content}`;
-    
+
+    const markdown = `# ${doc.sections[0].title || 'Documentation'}\n\n${content}`;
+
     const blob = new Blob([markdown], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${(doc.title || 'documentation').replace(/\s+/g, '-').toLowerCase()}.md`;
+    a.download = `${(doc.sections[0].title || 'documentation').replace(/\s+/g, '-').toLowerCase()}.md`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -198,9 +236,11 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
   };
 
   // Get unique providers from API keys
+  // Get unique providers from API keys
   const getProviderSuggestions = () => {
-    const providers = [...new Set(apiKeys.map(key => key.service))];
-    return providers.filter(provider => provider && provider.trim() !== '');
+    // Flatten the array and filter out empty strings
+    const providers = Array.from(new Set(apiKeys.map(key => key.service).filter(Boolean)));
+    return providers.filter(provider => provider.trim() !== '');
   };
 
   // Format date
@@ -247,8 +287,8 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
               <Book className="w-6 h-6 text-blue-600 dark:text-blue-400" />
             )}
             <h2 className="text-xl font-semibold text-gray-900 dark:text-white">
-              {selectedDoc ? selectedDoc.title : 
-               activeTab === 'generate' ? 'Generate Documentation' : 'All Documentations'}
+              {selectedDoc ? selectedDoc.title :
+                activeTab === 'generate' ? 'Generate Documentation' : 'All Documentations'}
             </h2>
             {selectedDoc && 'url' in selectedDoc && (
               <a
@@ -263,7 +303,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
             )}
             {llmAvailable && (
               <div className="flex items-center px-2 py-1 text-xs font-medium text-green-800 bg-green-100 rounded-full dark:bg-green-900/30 dark:text-green-300">
-                <Bot className="w-3 h-3 mr-1" />
+                <Bot className="mr-1 w-3 h-3" />
                 LLM Ready
               </div>
             )}
@@ -273,22 +313,20 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
               <>
                 <button
                   onClick={() => setActiveTab('browse')}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
-                    activeTab === 'browse' 
-                      ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
-                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-                  }`}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${activeTab === 'browse'
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
                 >
                   Browse
                 </button>
                 <button
                   onClick={() => setActiveTab('generate')}
                   disabled={!llmAvailable}
-                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
-                    activeTab === 'generate'
-                      ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
-                      : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
-                  }`}
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${activeTab === 'generate'
+                    ? 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300'
+                    : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+                    }`}
                 >
                   <Wand2 className="w-4 h-4 mr-1.5" />
                   Generate
@@ -408,11 +446,11 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
           ) : activeTab === 'generate' ? (
             // LLM Documentation Generation View
             <div className="overflow-y-auto p-6 h-full">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full">
+              <div className="grid grid-cols-1 gap-6 h-full lg:grid-cols-2">
                 {/* Generation Form */}
                 <div className="space-y-6">
-                  <div className="bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 p-6 rounded-lg">
-                    <div className="flex items-center space-x-2 mb-4">
+                  <div className="p-6 bg-gradient-to-r from-purple-50 to-blue-50 rounded-lg dark:from-purple-900/20 dark:to-blue-900/20">
+                    <div className="flex items-center mb-4 space-x-2">
                       <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-400" />
                       <h3 className="font-semibold text-gray-900 dark:text-white">AI Documentation Generator</h3>
                     </div>
@@ -423,13 +461,13 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
 
                   <div className="space-y-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         API Provider
                       </label>
                       <select
                         value={generationOptions.provider}
                         onChange={(e) => setGenerationOptions(prev => ({ ...prev, provider: e.target.value }))}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        className="px-3 py-2 w-full rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       >
                         <option value="">Select a provider...</option>
                         {getProviderSuggestions().map(provider => (
@@ -443,13 +481,13 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                           placeholder="Enter custom provider name"
                           value={generationOptions.provider === 'custom' ? '' : generationOptions.provider}
                           onChange={(e) => setGenerationOptions(prev => ({ ...prev, provider: e.target.value }))}
-                          className="w-full mt-2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          className="px-3 py-2 mt-2 w-full rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         />
                       )}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                      <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                         Context & Description
                       </label>
                       <textarea
@@ -457,19 +495,19 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                         onChange={(e) => setGenerationOptions(prev => ({ ...prev, context: e.target.value }))}
                         placeholder="Describe the API, its purpose, key features, and any specific requirements..."
                         rows={4}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                        className="px-3 py-2 w-full rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                       />
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                           Framework
                         </label>
                         <select
                           value={generationOptions.framework}
                           onChange={(e) => setGenerationOptions(prev => ({ ...prev, framework: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          className="px-3 py-2 w-full rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         >
                           <option value="react">React</option>
                           <option value="nextjs">Next.js</option>
@@ -480,13 +518,13 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                         </select>
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        <label className="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
                           Environment
                         </label>
                         <select
                           value={generationOptions.environment}
                           onChange={(e) => setGenerationOptions(prev => ({ ...prev, environment: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                          className="px-3 py-2 w-full rounded-md border border-gray-300 shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
                         >
                           <option value="development">Development</option>
                           <option value="staging">Staging</option>
@@ -505,7 +543,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                             type="checkbox"
                             checked={generationOptions.includeExamples}
                             onChange={(e) => setGenerationOptions(prev => ({ ...prev, includeExamples: e.target.checked }))}
-                            className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                            className="mr-2 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">Code Examples</span>
                         </label>
@@ -514,7 +552,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                             type="checkbox"
                             checked={generationOptions.includeConfig}
                             onChange={(e) => setGenerationOptions(prev => ({ ...prev, includeConfig: e.target.checked }))}
-                            className="mr-2 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                            className="mr-2 w-4 h-4 text-purple-600 rounded border-gray-300 focus:ring-purple-500"
                           />
                           <span className="text-sm text-gray-700 dark:text-gray-300">Configuration Templates</span>
                         </label>
@@ -524,23 +562,23 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                     <button
                       onClick={handleGenerateDocumentation}
                       disabled={!generationOptions.provider || !generationOptions.context || isGenerating}
-                      className="w-full flex items-center justify-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex justify-center items-center px-4 py-2 w-full text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-md border border-transparent shadow-sm hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isGenerating ? (
                         <>
-                          <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                          <RefreshCw className="mr-2 w-4 h-4 animate-spin" />
                           Generating...
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-4 h-4 mr-2" />
+                          <Sparkles className="mr-2 w-4 h-4" />
                           Generate Documentation
                         </>
                       )}
                     </button>
 
                     {llmError && (
-                      <div className="p-3 bg-red-100 border border-red-400 text-red-700 rounded-md dark:bg-red-900/50 dark:border-red-700 dark:text-red-300">
+                      <div className="p-3 text-red-700 bg-red-100 rounded-md border border-red-400 dark:bg-red-900/50 dark:border-red-700 dark:text-red-300">
                         <p className="text-sm">{llmError}</p>
                       </div>
                     )}
@@ -550,37 +588,37 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                 {/* Generated Content Preview */}
                 <div className="space-y-6">
                   {generatedDocs ? (
-                    <div className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-6">
-                      <div className="flex items-center justify-between mb-4">
+                    <div className="p-6 bg-white rounded-lg border border-gray-200 dark:bg-gray-800 dark:border-gray-700">
+                      <div className="flex justify-between items-center mb-4">
                         <h3 className="font-semibold text-gray-900 dark:text-white">Generated Documentation</h3>
                         <div className="flex space-x-2">
                           <button
                             onClick={() => handleSaveGeneratedDoc(generatedDocs)}
                             className="flex items-center px-3 py-1.5 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500"
                           >
-                            <Save className="w-4 h-4 mr-1" />
+                            <Save className="mr-1 w-4 h-4" />
                             Save
                           </button>
                           <button
                             onClick={() => handleExportDocumentation(generatedDocs)}
                             className="flex items-center px-3 py-1.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
                           >
-                            <Download className="w-4 h-4 mr-1" />
+                            <Download className="mr-1 w-4 h-4" />
                             Export
                           </button>
                         </div>
                       </div>
-                      <div className="prose dark:prose-invert max-w-none text-sm">
+                      <div className="max-w-none text-sm prose dark:prose-invert">
                         <div dangerouslySetInnerHTML={{ __html: generatedDocs.content }} />
                       </div>
-                      
+
                       {codeExamples.length > 0 && (
                         <div className="mt-6">
-                          <h4 className="font-medium text-gray-900 dark:text-white mb-3">Code Examples</h4>
+                          <h4 className="mb-3 font-medium text-gray-900 dark:text-white">Code Examples</h4>
                           <div className="space-y-3">
                             {codeExamples.map((example, index) => (
-                              <div key={index} className="bg-gray-100 dark:bg-gray-900 rounded-md p-3">
-                                <div className="flex items-center justify-between mb-2">
+                              <div key={index} className="p-3 bg-gray-100 rounded-md dark:bg-gray-900">
+                                <div className="flex justify-between items-center mb-2">
                                   <span className="text-xs font-medium text-gray-600 dark:text-gray-400">
                                     {example.language}
                                   </span>
@@ -588,7 +626,7 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                                     {example.title}
                                   </span>
                                 </div>
-                                <pre className="text-xs text-gray-800 dark:text-gray-200 overflow-x-auto">
+                                <pre className="overflow-x-auto text-xs text-gray-800 dark:text-gray-200">
                                   <code>{example.code}</code>
                                 </pre>
                               </div>
@@ -598,12 +636,12 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                       )}
                     </div>
                   ) : (
-                    <div className="bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-12 text-center">
-                      <Bot className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                      <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                    <div className="p-12 text-center bg-gray-50 rounded-lg border-2 border-gray-300 border-dashed dark:bg-gray-800 dark:border-gray-600">
+                      <Bot className="mx-auto mb-4 w-12 h-12 text-gray-400" />
+                      <h3 className="mb-2 text-lg font-medium text-gray-900 dark:text-white">
                         AI-Generated Content
                       </h3>
-                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                      <p className="mb-4 text-gray-600 dark:text-gray-400">
                         Fill out the form and click generate to create comprehensive API documentation using our local LLM.
                       </p>
                       {!llmAvailable && (
@@ -629,9 +667,9 @@ export const AllDocumentationModal: React.FC<AllDocumentationModalProps> = ({
                   {llmAvailable && (
                     <button
                       onClick={() => setActiveTab('generate')}
-                      className="mt-4 inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                      className="inline-flex items-center px-4 py-2 mt-4 text-sm font-medium text-white bg-gradient-to-r from-purple-600 to-blue-600 rounded-md border border-transparent shadow-sm hover:from-purple-700 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
                     >
-                      <Sparkles className="w-4 h-4 mr-2" />
+                      <Sparkles className="mr-2 w-4 h-4" />
                       Generate Documentation
                     </button>
                   )}

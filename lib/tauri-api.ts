@@ -179,22 +179,33 @@ export interface MLPrediction {
     security_score: SecurityScore;
 }
 
+import { KeyFormat } from './services/mlService';
+
 export interface KeySuggestion {
     key_id: string;
     confidence: number;
-    reasoning: string;
+    reason: string;
+    suggested_format: KeyFormat;
+    reasoning?: string; // Keep for backward compatibility
+}
+
+export enum RiskLevel {
+    Low = 'Low',
+    Medium = 'Medium',
+    High = 'High',
+    Critical = 'Critical'
 }
 
 export interface UsagePrediction {
-    likelihood: number;
-    estimated_usage: number;
-    peak_times: string[];
+    frequency_score: number;
+    recency_score: number;
+    context_match_score: number;
 }
 
 export interface SecurityScore {
-    score: number;
-    risk_factors: string[];
-    recommendations: string[];
+    risk_level: RiskLevel;
+    confidence: number;
+    reasons: string[];
 }
 
 export interface MLConfig {
@@ -279,7 +290,14 @@ export interface EnvironmentVariable {
 }
 
 // Enhanced ML Prediction Types
-export interface EnhancedMLPrediction extends MLPrediction {
+export interface EnhancedMLPrediction {
+    // Include all properties from MLPrediction
+    api_key_suggestions: KeySuggestion[];
+    context_confidence: number;
+    usage_prediction: UsagePrediction;
+    security_score: SecurityScore;
+    
+    // Additional properties
     suggested_documentation?: DocumentationSuggestion[];
     configuration_recommendations?: ConfigurationRecommendation[];
     llm_insights?: LLMInsight[];
@@ -326,7 +344,7 @@ export interface GeneratedConfig {
 export interface GeneratedFile {
     path: string;
     content: string;
-    file_type: string;
+    file_type: 'config' | 'code' | 'documentation';  // Update to match your actual types
     language: string;
 }
 
@@ -909,8 +927,8 @@ export class TauriAPI {
 
     // Enhanced ML Analysis with LLM Insights
     static async getEnhancedMLPrediction(context: ContextInfo, availableKeys: string[]): Promise<EnhancedMLPrediction> {
-        return await invoke('get_enhanced_ml_prediction', { 
-            request: { context, available_keys: availableKeys } 
+        return await invoke('get_enhanced_ml_prediction', {
+            request: { context, available_keys: availableKeys }
         });
     }
 

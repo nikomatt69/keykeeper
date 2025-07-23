@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
+import { GeneratedFile } from '../tauri-api';
 
 export interface ApiProvider {
     id: string;
@@ -47,12 +48,7 @@ export interface GeneratedConfig {
     nextSteps: string[];
 }
 
-export interface GeneratedFile {
-    path: string;
-    content: string;
-    type: 'config' | 'client' | 'types' | 'component' | 'middleware' | 'route';
-    language: 'typescript' | 'javascript' | 'json' | 'env' | 'yaml';
-}
+// Using GeneratedFile from tauri-api.ts
 
 /**
  * API Provider Service - Detects API providers and generates configurations
@@ -372,8 +368,8 @@ export class ApiProviderService {
             files.push({
                 path: template.fileName,
                 content,
-                type: template.id.includes('client') ? 'client' : 'config',
-                language: template.fileType
+                file_type: template.id.includes('client') ? 'code' : 'config',
+                language: template.fileType as 'typescript' | 'javascript' | 'json' | 'env' | 'yaml'
             });
 
             dependencies.push(...template.dependencies);
