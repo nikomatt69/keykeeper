@@ -15,12 +15,17 @@ import {
   CheckCircle2,
   Clock,
   FileText,
-  Unlock
+  Unlock,
+  BookOpen,
+  ExternalLink,
+  Wand2
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import ProjectPathDisplay from './ProjectPathDisplay'
 import { TauriAPI } from '../lib/tauri-api'
 import { nativeStorageService } from '../lib/services/nativeStorageService'
+import DocumentationModal from './modals/DocumentationModal'
+import ConfigGenerationModal from './modals/ConfigGenerationModal'
 
 export default function ApiKeyDetail() {
   const {
@@ -37,6 +42,8 @@ export default function ApiKeyDetail() {
   const [isDecrypting, setIsDecrypting] = useState(false)
   const [showDecryptModal, setShowDecryptModal] = useState(false)
   const [masterPassword, setMasterPassword] = useState('')
+  const [showDocumentationModal, setShowDocumentationModal] = useState(false)
+  const [showGenerationModal, setShowGenerationModal] = useState(false)
 
   // Carica lo stato VSCode per la chiave selezionata
   useEffect(() => {
@@ -168,6 +175,40 @@ export default function ApiKeyDetail() {
           </div>
 
           <div className="flex items-center ml-4 space-x-2">
+            {/* Documentation Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowDocumentationModal(true)}
+              className="p-2 btn-secondary hover-lift focus-native"
+              style={{
+                background: 'rgba(34, 197, 94, 0.1)',
+                color: 'var(--color-success)',
+                border: '1px solid rgba(34, 197, 94, 0.2)',
+                borderRadius: 'var(--radius-md)'
+              }}
+              title="Add Documentation"
+            >
+              <BookOpen className="w-4 h-4" />
+            </motion.button>
+
+            {/* Config Generation Button */}
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setShowGenerationModal(true)}
+              className="p-2 btn-secondary hover-lift focus-native"
+              style={{
+                background: 'rgba(147, 51, 234, 0.1)',
+                color: 'var(--color-purple)',
+                border: '1px solid rgba(147, 51, 234, 0.2)',
+                borderRadius: 'var(--radius-md)'
+              }}
+              title="Generate Config Files"
+            >
+              <Wand2 className="w-4 h-4" />
+            </motion.button>
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -362,6 +403,65 @@ export default function ApiKeyDetail() {
                   )
                 }
               })()}
+            </div>
+          </div>
+        )}
+
+        {/* Documentation */}
+        {selectedKey.documentation_url && (
+          <div className="p-4 glass-card">
+            <h3 className="flex items-center mb-3 space-x-2 text-heading">
+              <BookOpen className="w-4 h-4" />
+              <span>Documentation</span>
+            </h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex-1 min-w-0">
+                  <h4 className="font-medium text-body truncate">
+                    {selectedKey.documentation_title || 'API Documentation'}
+                  </h4>
+                  <p className="text-sm text-subheading truncate">
+                    {selectedKey.documentation_url}
+                  </p>
+                </div>
+                <a
+                  href={selectedKey.documentation_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 btn-secondary hover-lift focus-native ml-3"
+                  style={{
+                    background: 'rgba(34, 197, 94, 0.1)',
+                    color: 'var(--color-success)',
+                    border: '1px solid rgba(34, 197, 94, 0.2)',
+                    borderRadius: 'var(--radius-md)'
+                  }}
+                  title="Open Documentation"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                </a>
+              </div>
+              
+              {selectedKey.last_doc_sync && (
+                <div className="flex items-center space-x-2 text-xs text-subheading">
+                  <CheckCircle2 className="w-3 h-3" style={{ color: 'var(--color-success)' }} />
+                  <span>
+                    Last synced: {new Date(selectedKey.last_doc_sync).toLocaleDateString('en-US', {
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+              )}
+              
+              {selectedKey.documentation_content && (
+                <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                  <p className="text-sm text-body line-clamp-3">
+                    {selectedKey.documentation_content}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -571,6 +671,20 @@ export default function ApiKeyDetail() {
           </motion.div>
         </div>
       )}
+
+      {/* Documentation Modal */}
+      <DocumentationModal
+        isOpen={showDocumentationModal}
+        onClose={() => setShowDocumentationModal(false)}
+        apiKeyId={selectedKey?.id}
+      />
+
+      {/* Config Generation Modal */}
+      <ConfigGenerationModal
+        isOpen={showGenerationModal}
+        onClose={() => setShowGenerationModal(false)}
+        apiKey={selectedKey}
+      />
     </div>
   )
 }

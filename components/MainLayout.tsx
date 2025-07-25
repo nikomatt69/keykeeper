@@ -13,6 +13,7 @@ import SettingsScreen from './SettingsScreen'
 import DragDropZone from './DragDropZone'
 import ProjectDashboard from './ProjectDashboard'
 import BottomSheet from './BottomSheet'
+import AllDocumentationModal from './modals/AllDocumentationModal'
 
 export default function MainLayout() {
   const {
@@ -26,8 +27,10 @@ export default function MainLayout() {
     showSettingsModal,
     showProjectModal,
     showAssignKeysModal,
+    showDocumentationModal,
     setShowProjectModal,
-    setShowAssignKeysModal
+    setShowAssignKeysModal,
+    setShowDocumentationModal
   } = useAppStore()
 
   useEffect(() => {
@@ -126,6 +129,12 @@ export default function MainLayout() {
           isOpen={showAssignKeysModal}
           onClose={() => setShowAssignKeysModal(false)}
           project={selectedProject}
+        />
+      )}
+      {showDocumentationModal && (
+        <AllDocumentationModal
+          isOpen={showDocumentationModal}
+          onClose={() => setShowDocumentationModal(false)}
         />
       )}
 

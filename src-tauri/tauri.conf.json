@@ -1,8 +1,8 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "KeyKeeper",
-  "version": "2.2.5",
-  "identifier": "com.keykeeper.arm64test",
+  "version": "2.2.6",
+  "identifier": "com.keykeeper.arm64os1",
   "build": {
     "beforeBuildCommand": "yarn build",
     "beforeDevCommand": "yarn dev",
@@ -45,7 +45,9 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "resources": [],
+    "resources": [
+      "models/*"
+    ],
     "shortDescription": "A secure API key manager",
     "longDescription": "KeyKeeper is a secure, local API key manager that keeps your keys safe and organized.",
     "linux": {},

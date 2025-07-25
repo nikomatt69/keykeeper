@@ -11,6 +11,11 @@ KeyKeeper ("we," "our," or "us") is committed to protecting your privacy and per
 
 ## 2. Information We Collect
 
+
+
+
+
+
 ### 2.1 Data Stored Locally
 
 KeyKeeper stores the following data locally on your device:

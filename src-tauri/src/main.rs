@@ -40,6 +40,19 @@ use uuid::Uuid;
 extern crate keyring;
 extern crate whoami;
 
+// ML Engine modules
+mod ml_engine_simple;
+mod ml_engine;
+mod ml_commands;
+mod llm_wrapper;
+mod llm_proxy;
+mod api_generator;
+mod api_generator_commands;
+// Documentation modules
+mod docs_manager;
+mod docs_commands;
+use ml_engine_simple::MLEngine;
+
 // ===============================
 //  API HTTP ↔️ Tauri Command Map
 // ===============================
@@ -202,6 +215,33 @@ pub struct ProjectSettings {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Documentation {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub doc_type: String, // "api", "guide", "reference", "notes", "snippet"
+    pub project_id: Option<String>, // Associazione con progetti
+    pub provider_id: Option<String>, // Associazione con provider API
+    pub url: Option<String>, // URL di riferimento originale
+    pub tags: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+    pub language: String, // "en", "it", "es", etc.
+    pub is_favorite: bool,
+    pub search_keywords: Vec<String>, // Keywords per migliorare la ricerca
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DocSection {
+    pub id: String,
+    pub title: String,
+    pub content: String,
+    pub level: u8, // 1-6 per heading levels
+    pub anchor: Option<String>,
+    pub parent_section_id: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RecentActivity {
     pub id: String,
     pub activity_type: String, // "key_used", "key_created", "key_updated"
@@ -343,15 +383,160 @@ impl Default for ApiKeyVault {
     }
 }
 
+// ================================
+// Documentation Storage System
+// ================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DocsStore {
+    pub docs: HashMap<String, Documentation>,
+    pub version: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub index: HashMap<String, Vec<String>>, // keyword -> doc_ids mapping for search
+}
+
+impl Default for DocsStore {
+    fn default() -> Self {
+        Self {
+            docs: HashMap::new(),
+            version: "1.0.0".to_string(),
+            created_at: get_utc_timestamp(),
+            updated_at: get_utc_timestamp(),
+            index: HashMap::new(),
+        }
+    }
+}
+
+impl DocsStore {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn add_doc(&mut self, doc: Documentation) {
+        // Update index
+        self.update_index(&doc);
+        
+        // Add to store
+        self.docs.insert(doc.id.clone(), doc);
+        self.updated_at = get_utc_timestamp();
+    }
+
+    pub fn update_doc(&mut self, doc: Documentation) {
+        // Remove old index entries
+        if let Some(old_doc) = self.docs.get(&doc.id).cloned() {
+            self.remove_from_index(&old_doc);
+        }
+        
+        // Update index with new doc
+        self.update_index(&doc);
+        
+        // Update doc
+        self.docs.insert(doc.id.clone(), doc);
+        self.updated_at = get_utc_timestamp();
+    }
+
+    pub fn remove_doc(&mut self, doc_id: &str) -> Option<Documentation> {
+        if let Some(doc) = self.docs.remove(doc_id) {
+            self.remove_from_index(&doc);
+            self.updated_at = get_utc_timestamp();
+            Some(doc)
+        } else {
+            None
+        }
+    }
+
+    pub fn get_doc(&self, doc_id: &str) -> Option<&Documentation> {
+        self.docs.get(doc_id)
+    }
+
+    pub fn get_all_docs(&self) -> Vec<&Documentation> {
+        self.docs.values().collect()
+    }
+
+    pub fn search_docs(&self, query: &str) -> Vec<&Documentation> {
+        let query_lower = query.to_lowercase();
+        let mut results = Vec::new();
+        
+        // Search in index first
+        for (keyword, doc_ids) in &self.index {
+            if keyword.contains(&query_lower) {
+                for doc_id in doc_ids {
+                    if let Some(doc) = self.docs.get(doc_id) {
+                        if !results.iter().any(|d: &&Documentation| d.id == doc.id) {
+                            results.push(doc);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Also search directly in content if not found in index
+        if results.is_empty() {
+            for doc in self.docs.values() {
+                if doc.title.to_lowercase().contains(&query_lower) ||
+                   doc.content.to_lowercase().contains(&query_lower) {
+                    results.push(doc);
+                }
+            }
+        }
+        
+        results
+    }
+
+    fn update_index(&mut self, doc: &Documentation) {
+        // Index title words
+        for word in doc.title.to_lowercase().split_whitespace() {
+            if word.len() > 2 {
+                self.index.entry(word.to_string())
+                    .or_insert_with(Vec::new)
+                    .push(doc.id.clone());
+            }
+        }
+        
+        // Index search keywords
+        for keyword in &doc.search_keywords {
+            self.index.entry(keyword.to_lowercase())
+                .or_insert_with(Vec::new)
+                .push(doc.id.clone());
+        }
+        
+        // Index tags
+        for tag in &doc.tags {
+            self.index.entry(tag.to_lowercase())
+                .or_insert_with(Vec::new)
+                .push(doc.id.clone());
+        }
+    }
+
+    fn remove_from_index(&mut self, doc: &Documentation) {
+        // Remove from all index entries
+        for doc_ids in self.index.values_mut() {
+            doc_ids.retain(|id| id != &doc.id);
+        }
+        
+        // Remove empty index entries
+        self.index.retain(|_, doc_ids| !doc_ids.is_empty());
+    }
+}
+
 pub struct AppState {
     pub vault: Arc<Mutex<ApiKeyVault>>,
-    pub vault_path: PathBuf,
     pub is_unlocked: Arc<Mutex<bool>>,
-    // VSCode server state
+    pub vault_path: PathBuf,
+    pub ml_engine: Arc<tokio::sync::Mutex<Option<MLEngine>>>,
+    pub llm_proxy: std::sync::Arc<llm_proxy::LLMProxyState>,
+
     pub vscode_server_handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     pub vscode_server_running: Arc<AtomicBool>,
-    // Tray icon handle
+    
     pub tray_handle: Arc<Mutex<Option<TrayIcon>>>,
+    pub api_generator: Arc<Mutex<api_generator_commands::ApiGeneratorState>>,
+    // Documentation Manager
+    pub docs_manager: Arc<Mutex<docs_commands::DocsManagerState>>,
+    // Separate Documentation Store
+    pub docs_store: Arc<Mutex<DocsStore>>,
+    pub docs_store_path: PathBuf,
 }
 
 fn decrypt_api_key(encrypted: &str, password: &str) -> Result<String, String> {
@@ -1025,6 +1210,7 @@ async fn handle_hyper_request(
     vault: Arc<Mutex<ApiKeyVault>>,
     is_unlocked: Arc<Mutex<bool>>,
     vault_path: PathBuf,
+    llm_proxy: Arc<llm_proxy::LLMProxyState>,
 ) -> Result<Response<Full<bytes::Bytes>>, Infallible> {
     let method = req.method();
     let path = req.uri().path();
@@ -1033,11 +1219,17 @@ async fn handle_hyper_request(
     // Create temporary AppState for Tauri command calls
     let _app_state = AppState {
         vault: vault.clone(),
-        vault_path: vault_path.clone(),
         is_unlocked: is_unlocked.clone(),
+        vault_path: vault_path.clone(),
         vscode_server_handle: Arc::new(Mutex::new(None)),
         vscode_server_running: Arc::new(AtomicBool::new(false)),
         tray_handle: Arc::new(Mutex::new(None)),
+        ml_engine: Arc::new(tokio::sync::Mutex::new(None)),
+        api_generator: Arc::new(Mutex::new(api_generator_commands::ApiGeneratorState::new())),
+        docs_manager: Arc::new(Mutex::new(docs_commands::DocsManagerState::new())),
+        llm_proxy: llm_proxy,
+        docs_store: Arc::new(Mutex::new(DocsStore::new())),
+        docs_store_path: PathBuf::from("/tmp/temp_docs.json"),
     };
 
     // Get headers
@@ -1745,6 +1937,682 @@ async fn handle_hyper_request(
             }
         }
 
+        // ===============================
+        //  DOCUMENTATION HTTP ENDPOINTS
+        // ===============================
+        
+        (&Method::GET, "/api/docs") => {
+            let docs_store_guard = _app_state.docs_store.lock().await;
+            let docs: Vec<Documentation> = docs_store_guard.get_all_docs().into_iter().cloned().collect();
+            let response = serde_json::json!({
+                "success": true,
+                "data": docs
+            });
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                .unwrap())
+        }
+
+        (&Method::POST, "/api/docs/create") => {
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(create_request) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+                    let title = create_request["title"].as_str().unwrap_or("").to_string();
+                    let content = create_request["content"].as_str().unwrap_or("").to_string();
+                    let doc_type = create_request["doc_type"].as_str().unwrap_or("api").to_string();
+                    let project_id = create_request["project_id"].as_str().map(|s| s.to_string());
+                    let provider_id = create_request["provider_id"].as_str().map(|s| s.to_string());
+                    let url = create_request["url"].as_str().map(|s| s.to_string());
+                    let tags = create_request["tags"].as_array()
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                        .unwrap_or_default();
+                    let language = create_request["language"].as_str().unwrap_or("en").to_string();
+
+                    // Generate unique documentation ID
+                    let doc_id = format!("doc_{}", chrono::Utc::now().timestamp_millis());
+
+                    let documentation = Documentation {
+                        id: doc_id.clone(),
+                        title: title.clone(),
+                        content,
+                        doc_type,
+                        project_id,
+                        provider_id,
+                        url,
+                        tags,
+                        created_at: chrono::Utc::now().to_rfc3339(),
+                        updated_at: chrono::Utc::now().to_rfc3339(),
+                        language,
+                        is_favorite: false,
+                        search_keywords: vec![],
+                    };
+
+                    let mut docs_store_guard = _app_state.docs_store.lock().await;
+                    docs_store_guard.add_doc(documentation.clone());
+                    drop(docs_store_guard);
+
+                    // Save docs store
+                    let docs_store_guard = _app_state.docs_store.lock().await;
+                    let docs_path = &_app_state.docs_store_path;
+                    if let Some(parent) = docs_path.parent() {
+                        if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                            warn!("Failed to create docs store directory: {}", e);
+                        }
+                    }
+                    let serialized = serde_json::to_string_pretty(&*docs_store_guard).unwrap_or_default();
+                    drop(docs_store_guard);
+                    if let Err(e) = tokio::fs::write(docs_path, serialized).await {
+                        warn!("Failed to save docs store: {}", e);
+                    }
+
+                    let response = serde_json::json!({
+                        "success": true,
+                        "data": documentation
+                    });
+                    Ok(Response::builder()
+                        .status(StatusCode::CREATED)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(response.to_string())))
+                        .unwrap())
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::GET, "/api/docs/search") => {
+            if !_query.is_empty() {
+                let query_str = _query;
+                let query_params: std::collections::HashMap<_, _> = url::form_urlencoded::parse(query_str.as_bytes()).collect();
+                let search_query = query_params.get("query").map(|s| s.to_string()).unwrap_or_default();
+                let project_id = query_params.get("project_id").map(|s| s.to_string());
+                let doc_type = query_params.get("doc_type").map(|s| s.to_string());
+
+                let docs_store_guard = _app_state.docs_store.lock().await;
+                let mut results: Vec<Documentation> = docs_store_guard
+                    .search_docs(&search_query)
+                    .into_iter()
+                    .filter(|doc| {
+                        let matches_project = project_id.as_ref()
+                            .map(|pid| doc.project_id.as_ref() == Some(pid))
+                            .unwrap_or(true);
+                        let matches_type = doc_type.as_ref()
+                            .map(|dt| &doc.doc_type == dt)
+                            .unwrap_or(true);
+                        matches_project && matches_type
+                    })
+                    .cloned()
+                    .collect();
+
+                let response = serde_json::json!({
+                    "success": true,
+                    "data": results
+                });
+                Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(response.to_string())))
+                    .unwrap())
+            } else {
+                // Return empty results if no query provided
+                let response = serde_json::json!({
+                    "success": true,
+                    "data": {
+                        "results": Vec::<Documentation>::new(),
+                        "total": 0
+                    }
+                });
+                Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::GET, path) if path.starts_with("/api/docs/project/") => {
+            let project_id = path.strip_prefix("/api/docs/project/").unwrap_or("").to_string();
+            let docs_store_guard = _app_state.docs_store.lock().await;
+            let docs: Vec<Documentation> = docs_store_guard
+                .get_all_docs()
+                .into_iter()
+                .filter(|doc| doc.project_id.as_ref() == Some(&project_id))
+                .cloned()
+                .collect();
+
+            let response = serde_json::json!({
+                "success": true,
+                "data": docs
+            });
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                .unwrap())
+        }
+
+        (&Method::POST, "/api/docs/scrape") => {
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(scrape_request) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+                    let url = scrape_request["url"].as_str().unwrap_or("").to_string();
+                    let title = scrape_request["title"].as_str().map(|s| s.to_string());
+                    let project_id = scrape_request["project_id"].as_str().map(|s| s.to_string());
+                    let tags = scrape_request["tags"].as_array()
+                        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(|s| s.to_string())).collect())
+                        .unwrap_or_default();
+
+                    // Use documentation manager to scrape content
+                    let mut docs_manager = docs_manager::DocumentationManager::new_with_llm_proxy(
+                        Arc::clone(&_app_state.llm_proxy)
+                    );
+
+                    match docs_manager.scrape_documentation_content(&url).await {
+                        Ok(scraped_content) => {
+                            let doc_id = format!("doc_{}", chrono::Utc::now().timestamp_millis());
+                            let doc_title = title.unwrap_or_else(|| {
+                                let url_parts: Vec<&str> = url.split('/').collect();
+                                if let Some(domain) = url_parts.get(2) {
+                                    format!("Documentation from {}", domain)
+                                } else {
+                                    "Scraped Documentation".to_string()
+                                }
+                            });
+
+                            let documentation = Documentation {
+                                id: doc_id.clone(),
+                                title: doc_title,
+                                content: scraped_content,
+                                doc_type: "scraped".to_string(),
+                                project_id,
+                                provider_id: None,
+                                url: Some(url),
+                                tags,
+                                created_at: chrono::Utc::now().to_rfc3339(),
+                                updated_at: chrono::Utc::now().to_rfc3339(),
+                                language: "en".to_string(),
+                                is_favorite: false,
+                                search_keywords: vec![],
+                            };
+
+                            let mut docs_store_guard = _app_state.docs_store.lock().await;
+                            docs_store_guard.add_doc(documentation.clone());
+                            drop(docs_store_guard);
+
+                            let docs_store_guard = _app_state.docs_store.lock().await;
+                        let docs_path = &_app_state.docs_store_path;
+                        if let Some(parent) = docs_path.parent() {
+                            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                                warn!("Failed to create docs store directory: {}", e);
+                            }
+                        }
+                        let serialized = serde_json::to_string_pretty(&*docs_store_guard).unwrap_or_default();
+                        drop(docs_store_guard);
+                        if let Err(e) = tokio::fs::write(docs_path, serialized).await {
+                                warn!("Failed to save docs store: {}", e);
+                            }
+
+                            let response = serde_json::json!({
+                                "success": true,
+                                "data": documentation
+                            });
+                            Ok(Response::builder()
+                                .status(StatusCode::CREATED)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                                .unwrap())
+                        }
+                        Err(e) => {
+                            let error_response = serde_json::json!({"error": format!("Failed to scrape: {}", e)});
+                            Ok(Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                                .unwrap())
+                        }
+                    }
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::GET, "/api/providers") => {
+            // Get API providers using the existing command
+            let api_generator_guard = _app_state.api_generator.lock().await;
+            let service_guard = api_generator_guard.service.lock().await;
+            let providers = service_guard.get_providers();
+            drop(service_guard);
+            drop(api_generator_guard);
+            
+            let response = serde_json::json!({
+                "success": true,
+                "data": providers
+            });
+            Ok(Response::builder()
+                .status(StatusCode::OK)
+                .header("Content-Type", "application/json")
+                .header("Access-Control-Allow-Origin", "*")
+                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                .unwrap())
+        }
+
+        (&Method::POST, "/api/providers/detect") => {
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(detect_request) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+                    let file_path = detect_request["file_path"].as_str().unwrap_or("").to_string();
+                    
+                    // Simple detection based on file content
+                    let api_generator_guard = _app_state.api_generator.lock().await;
+                    let service_guard = api_generator_guard.service.lock().await;
+                    let providers = service_guard.get_providers();
+                    drop(service_guard);
+                    drop(api_generator_guard);
+                    
+                    let mut detection_results = Vec::new();
+                    
+                    // Read file content if possible and check for patterns
+                    if let Ok(content) = tokio::fs::read_to_string(&file_path).await {
+                        for provider in providers {
+                            let mut matched_patterns = Vec::new();
+                            let mut confidence = 0.0f64;
+                            
+                            // Check env patterns
+                            for pattern in &provider.env_patterns {
+                                if content.contains(pattern) {
+                                    matched_patterns.push(pattern.clone());
+                                    confidence += 0.3;
+                                }
+                            }
+                            
+                            // Check key patterns  
+                            for pattern in &provider.key_patterns {
+                                if content.contains(pattern) {
+                                    matched_patterns.push(pattern.clone());
+                                    confidence += 0.3;
+                                }
+                            }
+                            
+                            if confidence > 0.0 {
+                                detection_results.push(serde_json::json!({
+                                    "provider": provider,
+                                    "confidence": confidence.min(1.0f64),
+                                    "matched_patterns": matched_patterns,
+                                    "detected_env_vars": Vec::<String>::new()
+                                }));
+                            }
+                        }
+                    }
+                    
+                    let result = if detection_results.is_empty() {
+                        None::<serde_json::Value>
+                    } else {
+                        detection_results.first().cloned()
+                    };
+                    
+                    let response = serde_json::json!({
+                        "success": true,
+                        "data": result
+                    });
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(response.to_string())))
+                        .unwrap())
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::POST, "/api/generate/config") => {
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(generate_request) = serde_json::from_slice::<api_generator::GenerationRequest>(&body_bytes) {
+                    // Use existing API generator service directly
+                    let api_generator_guard = _app_state.api_generator.lock().await;
+                    let service_guard = api_generator_guard.service.lock().await;
+                    match service_guard.generate_configuration(generate_request).await {
+                        Ok(config) => {
+                            let response = serde_json::json!({
+                                "success": true,
+                                "data": config
+                            });
+                            Ok(Response::builder()
+                                .status(StatusCode::OK)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                                .unwrap())
+                        }
+                        Err(e) => {
+                            let error_response = serde_json::json!({"error": format!("Config generation failed: {}", e)});
+                            Ok(Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                                .unwrap())
+                        }
+                    }
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::POST, "/api/generate/preview") => {
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(generate_request) = serde_json::from_slice::<api_generator::GenerationRequest>(&body_bytes) {
+                    // Use existing API generator service directly
+                    let api_generator_guard = _app_state.api_generator.lock().await;
+                    let service_guard = api_generator_guard.service.lock().await;
+                    match service_guard.generate_configuration(generate_request).await {
+                        Ok(preview) => {
+                            let response = serde_json::json!({
+                                "success": true,
+                                "data": preview
+                            });
+                            Ok(Response::builder()
+                                .status(StatusCode::OK)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(response.to_string())))
+                                .unwrap())
+                        }
+                        Err(e) => {
+                            let error_response = serde_json::json!({"error": format!("Preview generation failed: {}", e)});
+                            Ok(Response::builder()
+                                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                                .header("Content-Type", "application/json")
+                                .header("Access-Control-Allow-Origin", "*")
+                                .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                                .unwrap())
+                        }
+                    }
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        // DELETE, PUT endpoint for documentation
+        (&Method::PUT, path) if path.starts_with("/api/docs/") => {
+            let doc_id = path.strip_prefix("/api/docs/").unwrap_or("").to_string();
+            if doc_id.is_empty() {
+                let error_response = serde_json::json!({"error": "Missing document ID"});
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            if let Ok(body_bytes) = req.into_body().collect().await.map(|collected| collected.to_bytes()) {
+                if let Ok(update_request) = serde_json::from_slice::<serde_json::Value>(&body_bytes) {
+                    let mut docs_store_guard = _app_state.docs_store.lock().await;
+                    
+                    if let Some(mut doc) = docs_store_guard.get_doc(&doc_id).cloned() {
+                        // Update fields if provided
+                        if let Some(title) = update_request["title"].as_str() {
+                            doc.title = title.to_string();
+                        }
+                        if let Some(content) = update_request["content"].as_str() {
+                            doc.content = content.to_string();
+                        }
+                        if let Some(doc_type) = update_request["doc_type"].as_str() {
+                            doc.doc_type = doc_type.to_string();
+                        }
+                        if let Some(is_favorite) = update_request["is_favorite"].as_bool() {
+                            doc.is_favorite = is_favorite;
+                        }
+                        doc.updated_at = chrono::Utc::now().to_rfc3339();
+
+                        docs_store_guard.update_doc(doc.clone());
+                        drop(docs_store_guard);
+
+                        let docs_store_guard = _app_state.docs_store.lock().await;
+                        let docs_path = &_app_state.docs_store_path;
+                        if let Some(parent) = docs_path.parent() {
+                            if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                                warn!("Failed to create docs store directory: {}", e);
+                            }
+                        }
+                        let serialized = serde_json::to_string_pretty(&*docs_store_guard).unwrap_or_default();
+                        drop(docs_store_guard);
+                        if let Err(e) = tokio::fs::write(docs_path, serialized).await {
+                            warn!("Failed to save docs store: {}", e);
+                        }
+
+                        let response = serde_json::json!({
+                            "success": true,
+                            "data": doc
+                        });
+                        Ok(Response::builder()
+                            .status(StatusCode::OK)
+                            .header("Content-Type", "application/json")
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(Full::new(bytes::Bytes::from(response.to_string())))
+                            .unwrap())
+                    } else {
+                        let error_response = serde_json::json!({"error": "Documentation not found"});
+                        Ok(Response::builder()
+                            .status(StatusCode::NOT_FOUND)
+                            .header("Content-Type", "application/json")
+                            .header("Access-Control-Allow-Origin", "*")
+                            .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                            .unwrap())
+                    }
+                } else {
+                    let error_response = serde_json::json!({"error": "Invalid JSON body"});
+                    Ok(Response::builder()
+                        .status(StatusCode::BAD_REQUEST)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            } else {
+                let error_response = serde_json::json!({"error": "Failed to read request body"});
+                Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
+        (&Method::DELETE, path) if path.starts_with("/api/docs/") => {
+            let doc_id = path.strip_prefix("/api/docs/").unwrap_or("").to_string();
+            if doc_id.is_empty() {
+                let error_response = serde_json::json!({"error": "Missing document ID"});
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let mut docs_store_guard = _app_state.docs_store.lock().await;
+            match docs_store_guard.remove_doc(&doc_id) {
+                Some(_) => {
+                    drop(docs_store_guard);
+                    
+                    let docs_store_guard = _app_state.docs_store.lock().await;
+                    let docs_path = &_app_state.docs_store_path;
+                    if let Some(parent) = docs_path.parent() {
+                        if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                            warn!("Failed to create docs store directory: {}", e);
+                        }
+                    }
+                    let serialized = serde_json::to_string_pretty(&*docs_store_guard).unwrap_or_default();
+                    drop(docs_store_guard);
+                    if let Err(e) = tokio::fs::write(docs_path, serialized).await {
+                        warn!("Failed to save docs store: {}", e);
+                    }
+
+                    let response = serde_json::json!({
+                        "success": true,
+                        "message": "Documentation deleted successfully"
+                    });
+                    Ok(Response::builder()
+                        .status(StatusCode::OK)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(response.to_string())))
+                        .unwrap())
+                }
+                None => {
+                    let error_response = serde_json::json!({"error": "Documentation not found"});
+                    Ok(Response::builder()
+                        .status(StatusCode::NOT_FOUND)
+                        .header("Content-Type", "application/json")
+                        .header("Access-Control-Allow-Origin", "*")
+                        .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                        .unwrap())
+                }
+            }
+        }
+
+        (&Method::POST, path) if path.starts_with("/api/docs/") && path.ends_with("/toggle-favorite") => {
+            let doc_id = path.strip_prefix("/api/docs/")
+                .and_then(|s| s.strip_suffix("/toggle-favorite"))
+                .unwrap_or("")
+                .to_string();
+            
+            if doc_id.is_empty() {
+                let error_response = serde_json::json!({"error": "Missing document ID"});
+                return Ok(Response::builder()
+                    .status(StatusCode::BAD_REQUEST)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap());
+            }
+
+            let mut docs_store_guard = _app_state.docs_store.lock().await;
+            
+            if let Some(mut doc) = docs_store_guard.get_doc(&doc_id).cloned() {
+                doc.is_favorite = !doc.is_favorite;
+                doc.updated_at = chrono::Utc::now().to_rfc3339();
+
+                docs_store_guard.update_doc(doc.clone());
+                drop(docs_store_guard);
+
+                let docs_store_guard = _app_state.docs_store.lock().await;
+                let docs_path = &_app_state.docs_store_path;
+                if let Some(parent) = docs_path.parent() {
+                    if let Err(e) = tokio::fs::create_dir_all(parent).await {
+                        warn!("Failed to create docs store directory: {}", e);
+                    }
+                }
+                let serialized = serde_json::to_string_pretty(&*docs_store_guard).unwrap_or_default();
+                drop(docs_store_guard);
+                if let Err(e) = tokio::fs::write(docs_path, serialized).await {
+                    warn!("Failed to save docs store: {}", e);
+                }
+
+                let response = serde_json::json!({
+                    "success": true,
+                    "data": doc
+                });
+                Ok(Response::builder()
+                    .status(StatusCode::OK)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(response.to_string())))
+                    .unwrap())
+            } else {
+                let error_response = serde_json::json!({"error": "Documentation not found"});
+                Ok(Response::builder()
+                    .status(StatusCode::NOT_FOUND)
+                    .header("Content-Type", "application/json")
+                    .header("Access-Control-Allow-Origin", "*")
+                    .body(Full::new(bytes::Bytes::from(error_response.to_string())))
+                    .unwrap())
+            }
+        }
+
         _ => {
             let error_response = serde_json::json!({"error": "Not found"});
             Ok(Response::builder()
@@ -1767,6 +2635,7 @@ async fn start_vscode_server(state: State<'_, AppState>) -> Result<String, Strin
     let is_unlocked = Arc::clone(&state.is_unlocked);
     let vault_path = state.vault_path.clone();
     let running_flag = Arc::clone(&state.vscode_server_running);
+    let llm_proxy = Arc::clone(&state.llm_proxy);
 
     running_flag.store(true, Ordering::SeqCst);
 
@@ -1792,6 +2661,7 @@ async fn start_vscode_server(state: State<'_, AppState>) -> Result<String, Strin
                     let vault = Arc::clone(&vault);
                     let is_unlocked = Arc::clone(&is_unlocked);
                     let vault_path = vault_path.clone();
+                    let llm_proxy = Arc::clone(&llm_proxy);
 
                     tokio::spawn(async move {
                         let io = TokioIo::new(stream);
@@ -1801,6 +2671,7 @@ async fn start_vscode_server(state: State<'_, AppState>) -> Result<String, Strin
                                 Arc::clone(&vault),
                                 Arc::clone(&is_unlocked),
                                 vault_path.clone(),
+                                Arc::clone(&llm_proxy),
                             )
                         });
 
@@ -4209,6 +5080,412 @@ async fn update_username(new_username: String, state: State<'_, AppState>) -> Re
     Ok(())
 }
 
+// ================================
+// Documentation Store File Operations
+// ================================
+
+async fn save_docs_store(state: &State<'_, AppState>) -> Result<(), String> {
+    let docs_store_guard = state.docs_store.lock().await;
+    let docs_path = &state.docs_store_path;
+    
+    // Create parent directory if it doesn't exist
+    if let Some(parent) = docs_path.parent() {
+        tokio::fs::create_dir_all(parent).await
+            .map_err(|e| format!("Failed to create docs directory: {}", e))?;
+    }
+    
+    // Serialize docs store to JSON
+    let docs_json = serde_json::to_string_pretty(&*docs_store_guard)
+        .map_err(|e| format!("Failed to serialize docs store: {}", e))?;
+    
+    // Write to file
+    tokio::fs::write(docs_path, docs_json).await
+        .map_err(|e| format!("Failed to write docs store: {}", e))?;
+    
+    info!("Documentation store saved to: {:?}", docs_path);
+    Ok(())
+}
+
+async fn load_docs_store(docs_store_path: &PathBuf) -> DocsStore {
+    if !docs_store_path.exists() {
+        info!("Documentation store file not found, creating new one: {:?}", docs_store_path);
+        return DocsStore::new();
+    }
+    
+    match tokio::fs::read_to_string(docs_store_path).await {
+        Ok(content) => {
+            match serde_json::from_str::<DocsStore>(&content) {
+                Ok(docs_store) => {
+                    info!("Loaded documentation store with {} documents", docs_store.docs.len());
+                    docs_store
+                }
+                Err(e) => {
+                    warn!("Failed to parse docs store, creating new one: {}", e);
+                    DocsStore::new()
+                }
+            }
+        }
+        Err(e) => {
+            warn!("Failed to read docs store file, creating new one: {}", e);
+            DocsStore::new()
+        }
+    }
+}
+
+// ================================
+// Documentation CRUD Commands
+// ================================
+
+#[tauri::command]
+async fn get_documentation(state: State<'_, AppState>) -> Result<Vec<Documentation>, String> {
+    let docs_store_guard = state.docs_store.lock().await;
+    Ok(docs_store_guard.get_all_docs().into_iter().cloned().collect())
+}
+
+#[tauri::command]
+async fn create_documentation(
+    title: String,
+    content: String,
+    doc_type: String,
+    project_id: Option<String>,
+    provider_id: Option<String>,
+    url: Option<String>,
+    tags: Option<Vec<String>>,
+    language: Option<String>,
+    search_keywords: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Documentation, String> {
+    let mut docs_store_guard = state.docs_store.lock().await;
+
+    // Generate unique documentation ID
+    let doc_id = format!("doc_{}", get_utc_timestamp_millis());
+
+    let documentation = Documentation {
+        id: doc_id.clone(),
+        title: title.clone(),
+        content,
+        doc_type,
+        project_id,
+        provider_id,
+        url,
+        tags: tags.unwrap_or_default(),
+        created_at: get_utc_timestamp(),
+        updated_at: get_utc_timestamp(),
+        language: language.unwrap_or_else(|| "en".to_string()),
+        is_favorite: false,
+        search_keywords: search_keywords.unwrap_or_default(),
+    };
+
+    docs_store_guard.add_doc(documentation.clone());
+    drop(docs_store_guard);
+
+    save_docs_store(&state).await?;
+    
+    // Still log audit event in main vault for tracking
+    if *state.is_unlocked.lock().await {
+        log_audit_event(&state, "create_documentation", "documentation", Some(&doc_id), true, None).await;
+    }
+
+    info!("Documentation created successfully: {} ({})", title, doc_id);
+    Ok(documentation)
+}
+
+#[tauri::command]
+async fn update_documentation(
+    id: String,
+    title: Option<String>,
+    content: Option<String>,
+    doc_type: Option<String>,
+    project_id: Option<String>,
+    provider_id: Option<String>,
+    url: Option<String>,
+    tags: Option<Vec<String>>,
+    language: Option<String>,
+    is_favorite: Option<bool>,
+    search_keywords: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Documentation, String> {
+    let mut docs_store_guard = state.docs_store.lock().await;
+
+    if let Some(mut documentation) = docs_store_guard.get_doc(&id).cloned() {
+        // Update fields if provided
+        if let Some(new_title) = title {
+            documentation.title = new_title;
+        }
+        if let Some(new_content) = content {
+            documentation.content = new_content;
+        }
+        if let Some(new_doc_type) = doc_type {
+            documentation.doc_type = new_doc_type;
+        }
+        if let Some(new_project_id) = project_id {
+            documentation.project_id = Some(new_project_id);
+        }
+        if let Some(new_provider_id) = provider_id {
+            documentation.provider_id = Some(new_provider_id);
+        }
+        if let Some(new_url) = url {
+            documentation.url = Some(new_url);
+        }
+        if let Some(new_tags) = tags {
+            documentation.tags = new_tags;
+        }
+        if let Some(new_language) = language {
+            documentation.language = new_language;
+        }
+        if let Some(new_is_favorite) = is_favorite {
+            documentation.is_favorite = new_is_favorite;
+        }
+        if let Some(new_keywords) = search_keywords {
+            documentation.search_keywords = new_keywords;
+        }
+
+        documentation.updated_at = get_utc_timestamp();
+
+        docs_store_guard.update_doc(documentation.clone());
+        drop(docs_store_guard);
+
+        save_docs_store(&state).await?;
+        
+        // Still log audit event in main vault for tracking
+        if *state.is_unlocked.lock().await {
+            log_audit_event(&state, "update_documentation", "documentation", Some(&id), true, None).await;
+        }
+
+        info!("Documentation updated successfully: {}", id);
+        Ok(documentation)
+    } else {
+        Err("Documentation not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn delete_documentation(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let mut docs_store_guard = state.docs_store.lock().await;
+
+    // Remove the documentation
+    let doc = docs_store_guard.remove_doc(&id)
+        .ok_or("Documentation not found".to_string())?;
+    drop(docs_store_guard);
+
+    save_docs_store(&state).await?;
+    
+    // Still log audit event in main vault for tracking
+    if *state.is_unlocked.lock().await {
+        log_audit_event(&state, "delete_documentation", "documentation", Some(&id), true, None).await;
+    }
+
+    info!("Documentation deleted successfully: {} ({})", doc.title, id);
+    Ok(())
+}
+
+#[tauri::command]
+async fn search_native_documentation(
+    query: String,
+    project_id: Option<String>,
+    provider_id: Option<String>,
+    doc_type: Option<String>,
+    tags: Option<Vec<String>>,
+    favorites_only: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<Vec<Documentation>, String> {
+    let docs_store_guard = state.docs_store.lock().await;
+    let query_lower = query.to_lowercase();
+    
+    let mut results: Vec<Documentation> = docs_store_guard
+        .search_docs(&query)
+        .into_iter()
+        .filter(|doc| {
+            // Filter by project_id if specified
+            let matches_project = project_id.as_ref()
+                .map(|pid| doc.project_id.as_ref() == Some(pid))
+                .unwrap_or(true);
+            
+            // Filter by provider_id if specified
+            let matches_provider = provider_id.as_ref()
+                .map(|pid| doc.provider_id.as_ref() == Some(pid))
+                .unwrap_or(true);
+            
+            // Filter by doc_type if specified
+            let matches_type = doc_type.as_ref()
+                .map(|dt| &doc.doc_type == dt)
+                .unwrap_or(true);
+            
+            // Filter by tags if specified
+            let matches_tags = tags.as_ref()
+                .map(|tags_filter| tags_filter.iter().any(|tag| doc.tags.contains(tag)))
+                .unwrap_or(true);
+            
+            // Filter by favorites if specified
+            let matches_favorites = favorites_only
+                .map(|fav| fav == false || doc.is_favorite)
+                .unwrap_or(true);
+            
+            matches_project && matches_provider && matches_type && matches_tags && matches_favorites
+        })
+        .cloned()
+        .collect();
+    
+    // Sort by relevance (simple scoring: title matches get higher priority)
+    results.sort_by(|a, b| {
+        let a_title_match = a.title.to_lowercase().contains(&query_lower);
+        let b_title_match = b.title.to_lowercase().contains(&query_lower);
+        
+        match (a_title_match, b_title_match) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            _ => b.updated_at.cmp(&a.updated_at), // Then sort by most recent
+        }
+    });
+    
+    Ok(results)
+}
+
+#[tauri::command]
+async fn get_documentation_by_project(
+    project_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Documentation>, String> {
+    let docs_store_guard = state.docs_store.lock().await;
+    let docs: Vec<Documentation> = docs_store_guard
+        .get_all_docs()
+        .into_iter()
+        .filter(|doc| doc.project_id.as_ref() == Some(&project_id))
+        .cloned()
+        .collect();
+    
+    Ok(docs)
+}
+
+#[tauri::command]
+async fn get_documentation_by_provider(
+    provider_id: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<Documentation>, String> {
+    let docs_store_guard = state.docs_store.lock().await;
+    let docs: Vec<Documentation> = docs_store_guard
+        .get_all_docs()
+        .into_iter()
+        .filter(|doc| doc.provider_id.as_ref() == Some(&provider_id))
+        .cloned()
+        .collect();
+    
+    Ok(docs)
+}
+
+#[tauri::command]
+async fn toggle_documentation_favorite(
+    id: String,
+    state: State<'_, AppState>,
+) -> Result<Documentation, String> {
+    let mut docs_store_guard = state.docs_store.lock().await;
+
+    if let Some(mut documentation) = docs_store_guard.get_doc(&id).cloned() {
+        documentation.is_favorite = !documentation.is_favorite;
+        documentation.updated_at = get_utc_timestamp();
+
+        docs_store_guard.update_doc(documentation.clone());
+        drop(docs_store_guard);
+
+        save_docs_store(&state).await?;
+        
+        // Still log audit event in main vault for tracking
+        if *state.is_unlocked.lock().await {
+            log_audit_event(&state, "toggle_documentation_favorite", "documentation", Some(&id), true, None).await;
+        }
+
+        info!("Documentation favorite toggled: {} -> {}", id, documentation.is_favorite);
+        Ok(documentation)
+    } else {
+        Err("Documentation not found".to_string())
+    }
+}
+
+#[tauri::command]
+async fn scrape_and_save_documentation(
+    url: String,
+    title: Option<String>,
+    doc_type: Option<String>,
+    project_id: Option<String>,
+    provider_id: Option<String>,
+    tags: Option<Vec<String>>,
+    state: State<'_, AppState>,
+) -> Result<Documentation, String> {
+    if !*state.is_unlocked.lock().await {
+        return Err("Vault is locked".to_string());
+    }
+
+    // Create documentation manager with LLM proxy
+    let mut docs_manager = docs_manager::DocumentationManager::new_with_llm_proxy(
+        Arc::clone(&state.llm_proxy)
+    );
+
+    // Scrape content from URL
+    let scraped_content = docs_manager.scrape_documentation_content(&url).await
+        .map_err(|e| format!("Failed to scrape documentation: {}", e))?;
+
+    // Generate unique documentation ID
+    let doc_id = format!("doc_{}", get_utc_timestamp_millis());
+
+    // Determine title
+    let doc_title = title.unwrap_or_else(|| {
+        // Extract title from URL if not provided
+        let url_parts: Vec<&str> = url.split('/').collect();
+        if let Some(domain) = url_parts.get(2) {
+            format!("Documentation from {}", domain)
+        } else {
+            "Scraped Documentation".to_string()
+        }
+    });
+
+    // Create search keywords from content and title
+    let mut search_keywords = Vec::new();
+    search_keywords.extend(
+        doc_title
+            .to_lowercase()
+            .split_whitespace()
+            .map(|s| s.to_string())
+    );
+
+    // Extract keywords from first 500 characters of content
+    let content_preview = scraped_content.chars().take(500).collect::<String>();
+    let content_words: Vec<String> = content_preview
+        .to_lowercase()
+        .split_whitespace()
+        .filter(|word| word.len() > 3) // Only words longer than 3 chars
+        .take(20) // Limit to 20 keywords
+        .map(|s| s.to_string())
+        .collect();
+    search_keywords.extend(content_words);
+
+    // Remove duplicates
+    search_keywords.sort();
+    search_keywords.dedup();
+
+    let documentation = Documentation {
+        id: doc_id.clone(),
+        title: doc_title.clone(),
+        content: scraped_content,
+        doc_type: doc_type.unwrap_or_else(|| "scraped".to_string()),
+        project_id,
+        provider_id,
+        url: Some(url.clone()),
+        tags: tags.unwrap_or_default(),
+        created_at: get_utc_timestamp(),
+        updated_at: get_utc_timestamp(),
+        language: "en".to_string(),
+        is_favorite: false,
+        search_keywords,
+    };
+
+
+    info!("Documentation scraped and saved: {} from {}", doc_title, url);
+    Ok(documentation)
+}
+
 // Helper functions for biometric authentication
 fn get_device_platform() -> String {
     #[cfg(target_os = "macos")]
@@ -5171,10 +6448,15 @@ pub fn run() {
             // Initialize app state synchronously without block_on
             let app_data_dir = get_app_data_dir(&handle)?;
             let vault_path = app_data_dir.join("vault.json");
+            let docs_store_path = app_data_dir.join("documentation.json");
 
             // Load vault synchronously
             let vault =
                 load_vault(&vault_path).map_err(|e| Box::new(Error::new(ErrorKind::Other, e)))?;
+            
+            // Load docs store synchronously
+            let runtime = tokio::runtime::Runtime::new().map_err(|e| Box::new(Error::new(ErrorKind::Other, e)))?;
+            let docs_store = runtime.block_on(load_docs_store(&docs_store_path));
 
             let app_state = AppState {
                 vault: Arc::new(Mutex::new(vault)),
@@ -5183,6 +6465,12 @@ pub fn run() {
                 vscode_server_handle: Arc::new(Mutex::new(None)),
                 vscode_server_running: Arc::new(AtomicBool::new(false)),
                 tray_handle: Arc::new(Mutex::new(None)),
+                ml_engine: Arc::new(tokio::sync::Mutex::new(None)),
+                api_generator: Arc::new(Mutex::new(api_generator_commands::ApiGeneratorState::new())),
+                docs_manager: Arc::new(Mutex::new(docs_commands::DocsManagerState::new())),
+                llm_proxy: Arc::new(llm_proxy::LLMProxyState::default()),
+                docs_store: Arc::new(Mutex::new(docs_store)),
+                docs_store_path,
             };
 
             app.manage(app_state);
@@ -5257,6 +6545,55 @@ pub fn run() {
             get_recent_activity,
             record_key_usage,
             sync_project,
+            // ML commands
+            ml_commands::initialize_ml_engine,
+            ml_commands::analyze_context_ml,
+            ml_commands::record_ml_usage,
+            ml_commands::get_ml_stats,
+            ml_commands::check_ml_status,
+            ml_commands::reinitialize_ml_engine,
+            ml_commands::get_ml_config,
+            ml_commands::detect_context,
+            // ML LLM-enhanced commands
+            ml_commands::generate_documentation,
+            ml_commands::generate_usage_examples,
+            ml_commands::generate_config_template,
+            ml_commands::get_config_recommendations,
+            ml_commands::diagnose_ml_setup,
+            // LLM Proxy commands
+            llm_proxy::process_with_llm,
+            llm_proxy::clear_llm_cache,
+            llm_proxy::get_llm_cache_stats,
+            llm_proxy::is_llm_engine_loaded,
+            // API Generator Commands
+            api_generator_commands::get_api_providers,
+            api_generator_commands::scrape_api_documentation,
+            api_generator_commands::generate_api_configuration,
+            api_generator_commands::detect_provider_from_env,
+            api_generator_commands::generate_better_auth_config,
+            api_generator_commands::generate_openai_config,
+            api_generator_commands::get_provider_templates,
+            api_generator_commands::preview_generated_config,
+            // Documentation Commands
+            docs_commands::add_provider_documentation,
+            docs_commands::get_provider_documentation,
+            docs_commands::search_documentation,
+            docs_commands::get_documentation_by_id,
+            docs_commands::update_provider_documentation,
+            docs_commands::remove_provider_documentation,
+            docs_commands::get_indexed_providers,
+            docs_commands::auto_index_provider_docs,
+            docs_commands::get_context_documentation_suggestions,
+            // Native Documentation Store Commands
+            get_documentation,
+            create_documentation,
+            update_documentation,
+            delete_documentation,
+            search_native_documentation,
+            get_documentation_by_project,
+            get_documentation_by_provider,
+            toggle_documentation_favorite,
+            scrape_and_save_documentation,
             create_project,
             update_project,
             delete_project,

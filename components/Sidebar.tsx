@@ -8,7 +8,8 @@ import {
   Settings,
   ChevronLeft,
   ChevronRight,
-  Folder
+  Folder,
+  Book
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -32,6 +33,7 @@ export default function Sidebar() {
     isLoading,
     setShowSettingsModal,
     setShowProjectModal,
+    setShowDocumentationModal,
     projects
   } = useAppStore()
 
@@ -276,6 +278,19 @@ export default function Sidebar() {
             <ThemeToggle />
           </div>
         )}
+
+        {/* Documentation Button */}
+        <button
+          onClick={() => setShowDocumentationModal(true)}
+          className={`btn-secondary hover-lift focus-native ${sidebarCollapsed ? 'flex justify-center p-3' : 'flex items-center p-3 space-x-3'}`}
+          style={{
+            width: '100%',
+            borderRadius: 'var(--radius-md)'
+          }}
+        >
+          <Book className="w-4 h-4" />
+          {!sidebarCollapsed && <span className="text-body">Documentation</span>}
+        </button>
 
         <button
           onClick={lockVault}
