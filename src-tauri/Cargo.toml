@@ -1,6 +1,6 @@
 [package]
 name = "keykeeper"
-version = "2.2.5"
+version = "2.2.6"
 description = "A secure API key manager"
 authors = ["nikomatt69"]
 license = "AGPL-3.0"
@@ -54,11 +54,12 @@ whoami = "1.4"
 tauri-plugin-deep-link = "2.4.0"
 tauri-plugin-keyring = "0.1.0"
 
-# ML Dependencies for local inference with llm.rs
+# ML Dependencies for local inference - using candle-transformers for GGUF support
 anyhow = "1.0"
 tracing = "0.1"
-llm = { version = "1.3.1", features = ["full"] }
-tokenizers = "0.21.4-dev.0"
+# Note: rustformers/llm is archived, using candle ecosystem instead
+# llm = { version = "0.1.0-rc4", features = ["llama", "ggml-sys"] }
+tokenizers = "0.15"
 ndarray = "0.16.1"
 ndarray-npy = "0.9.1"
 numpy = { version = "0.25.0", optional = true }

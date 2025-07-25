@@ -10,6 +10,7 @@ use std::sync::Arc;
 use tokenizers::Tokenizer;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
+use tauri::Manager;
 
 /// Configuration for ML models
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -27,7 +28,7 @@ pub struct MLConfig {
 impl Default for MLConfig {
     fn default() -> Self {
         Self {
-            model_cache_path: PathBuf::from("./ml_models"),
+            model_cache_path: Self::get_default_model_path(),
             embedding_model: "sentence-transformers/all-MiniLM-L6-v2".to_string(),
             max_sequence_length: 256,
             batch_size: 32,
@@ -35,6 +36,226 @@ impl Default for MLConfig {
             llm_model_path: None,
             llm_config: None,
         }
+    }
+}
+
+impl MLConfig {
+    /// Get the default model path using Tauri's resource directory
+    pub fn get_default_model_path() -> PathBuf {
+        // Development fallbacks when no app handle is available
+        let dev_paths = [
+            "ml_models",
+            "src-tauri/ml_models", 
+            "../src-tauri/ml_models",
+            "./ml_models",
+            "models",
+            "src-tauri/models",
+            "../src-tauri/models",
+        ];
+        
+        for path_str in &dev_paths {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                return path;
+            }
+        }
+        
+        // Final fallback - create in app data directory
+        warn!("No existing model directory found, using fallback path");
+        PathBuf::from("ml_models")
+    }
+    
+    /// Create MLConfig with proper resource path resolution
+    pub fn with_app_handle(app_handle: &tauri::AppHandle) -> Result<Self> {
+        let model_path = Self::resolve_model_path(app_handle)?;
+        Ok(Self {
+            model_cache_path: model_path,
+            ..Default::default()
+        })
+    }
+    
+    /// Resolve model path using Tauri app handle for resource resolution
+    pub fn resolve_model_path(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
+        // Try bundled resources first (production) - use asset resolver for proper Tauri v2 pattern
+        let resolver = app_handle.asset_resolver();
+        
+        // Check if bundled model exists using asset resolver
+        if let Some(_asset) = resolver.get("models/gte-small.Q6_K.gguf".to_string()) {
+            // Get the resource directory path
+            if let Ok(resource_path) = app_handle.path().resource_dir() {
+                let models_path = resource_path.join("models");
+                if models_path.exists() {
+                    info!("Using bundled models directory: {:?}", models_path);
+                    return Ok(models_path);
+                }
+            }
+        }
+        
+        // Try app data directory
+        if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+            let models_path = app_data_dir.join("models");
+            // Create directory if it doesn't exist
+            if let Err(e) = std::fs::create_dir_all(&models_path) {
+                warn!("Failed to create app data models directory: {}", e);
+            } else {
+                info!("Using app data models directory: {:?}", models_path);
+                return Ok(models_path);
+            }
+        }
+        
+        // Development fallbacks
+        let dev_paths = [
+            "ml_models",
+            "src-tauri/ml_models", 
+            "../src-tauri/ml_models",
+            "models",
+            "src-tauri/models",
+            "../src-tauri/models",
+        ];
+        
+        for path_str in &dev_paths {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                info!("Using development models directory: {:?}", path);
+                return Ok(path);
+            }
+        }
+        
+        Err(anyhow::anyhow!(
+            "Could not resolve models directory path. This may indicate:\n\
+            1. Missing bundled resources in production build\n\
+            2. No writable app data directory\n\
+            3. Missing development model files\n\
+            \n\
+            Expected locations:\n\
+            - Bundled: [app]/resources/models/\n\
+            - App data: [app_data]/models/\n\
+            - Development: ./ml_models/, ./models/, etc.\n\
+            \n\
+            Please ensure the model files are properly bundled or available in development."
+        ))
+    }
+    /// Validate the ML configuration
+    pub fn validate(&self) -> Result<()> {
+        // Check batch size is reasonable
+        if self.batch_size == 0 {
+            return Err(anyhow::anyhow!("Batch size must be greater than 0"));
+        }
+        if self.batch_size > 256 {
+            warn!("Large batch size ({}) may cause memory issues", self.batch_size);
+        }
+
+        // Check sequence length is reasonable
+        if self.max_sequence_length == 0 {
+            return Err(anyhow::anyhow!("Max sequence length must be greater than 0"));
+        }
+        if self.max_sequence_length > 8192 {
+            warn!("Very large sequence length ({}) may cause performance issues", self.max_sequence_length);
+        }
+
+        // Validate LLM configuration if using LLM backend
+        if self.use_llm_backend {
+            if let Some(llm_config) = &self.llm_config {
+                llm_config.validate()?;
+            } else {
+                return Err(anyhow::anyhow!(
+                    "LLM backend enabled but no LLM configuration provided"
+                ));
+            }
+
+            if let Some(model_path) = &self.llm_model_path {
+                let path = std::path::Path::new(model_path);
+                if !path.exists() {
+                    warn!("LLM model path does not exist: {}", model_path);
+                }
+            }
+        }
+
+        // Check embedding model name is reasonable
+        if self.embedding_model.is_empty() {
+            return Err(anyhow::anyhow!("Embedding model name cannot be empty"));
+        }
+
+        // Create model cache directory if it doesn't exist
+        if !self.model_cache_path.exists() {
+            std::fs::create_dir_all(&self.model_cache_path)
+                .context("Failed to create model cache directory")?;
+        }
+
+        Ok(())
+    }
+
+    /// Get recommended configuration for different use cases
+    pub fn for_lightweight_usage() -> Self {
+        Self {
+            batch_size: 16,
+            max_sequence_length: 128,
+            use_llm_backend: false,
+            ..Default::default()
+        }
+    }
+
+    pub fn for_full_llm_usage(model_path: String) -> Self {
+        Self {
+            use_llm_backend: true,
+            llm_model_path: Some(model_path.clone()),
+            llm_config: Some(crate::llm_wrapper::LLMConfig {
+                model_path,
+                context_size: 4096,
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+    
+    /// Create config for full LLM usage with proper path resolution
+    pub fn for_full_llm_usage_with_app(app_handle: &tauri::AppHandle) -> Result<Self> {
+        let resolver = app_handle.asset_resolver();
+        
+        // First check if bundled resource exists
+        if let Some(_asset) = resolver.get("models/gte-small.Q6_K.gguf".to_string()) {
+            let models_path = Self::resolve_model_path(app_handle)?;
+            let model_file = models_path.join("gte-small.Q6_K.gguf");
+            
+            if model_file.exists() {
+                let model_path_str = model_file.to_string_lossy().to_string();
+                return Ok(Self {
+                    model_cache_path: models_path,
+                    use_llm_backend: true,
+                    llm_model_path: Some(model_path_str.clone()),
+                    llm_config: Some(crate::llm_wrapper::LLMConfig {
+                        model_path: model_path_str,
+                        context_size: 4096,
+                        ..Default::default()
+                    }),
+                    ..Default::default()
+                });
+            }
+        }
+        
+        // Fallback to regular path resolution
+        let models_path = Self::resolve_model_path(app_handle)?;
+        let model_file = models_path.join("gte-small.Q6_K.gguf");
+        
+        if !model_file.exists() {
+            return Err(anyhow::anyhow!(
+                "Model file not found at {:?}. Please ensure the model is properly bundled or available in development.", 
+                model_file
+            ));
+        }
+        
+        let model_path_str = model_file.to_string_lossy().to_string();
+        Ok(Self {
+            model_cache_path: models_path,
+            use_llm_backend: true,
+            llm_model_path: Some(model_path_str.clone()),
+            llm_config: Some(crate::llm_wrapper::LLMConfig {
+                model_path: model_path_str,
+                context_size: 4096,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
     }
 }
 
@@ -122,9 +343,13 @@ impl MLEngine {
     pub async fn new(config: MLConfig) -> Result<Self> {
         info!("Initializing ML Engine with config: {:?}", config);
         
+        // Validate configuration first
+        config.validate()
+            .context("ML Engine configuration validation failed")?;
+        
         let device = Device::Cpu;
         
-        // Create cache directory if it doesn't exist
+        // Create cache directory if it doesn't exist (already done in validation, but double-check)
         tokio::fs::create_dir_all(&config.model_cache_path)
             .await
             .context("Failed to create model cache directory")?;
@@ -151,10 +376,17 @@ impl MLEngine {
         if self.config.use_llm_backend {
             if let Some(llm_config) = &self.config.llm_config {
                 info!("Initializing LLM engine with config: {:?}", llm_config);
-                let llm_engine = crate::llm_wrapper::LLMEngine::new(llm_config.clone())?;
-                llm_engine.load_model().await?;
-                self.llm_engine = Some(llm_engine);
-                info!("LLM engine initialized successfully");
+                match self.initialize_llm_engine(llm_config.clone()).await {
+                    Ok(llm_engine) => {
+                        self.llm_engine = Some(llm_engine);
+                        info!("✅ LLM engine initialized successfully");
+                    },
+                    Err(e) => {
+                        warn!("❌ Failed to initialize LLM engine: {}", e);
+                        warn!("Continuing with embedding-only mode");
+                        // Don't fail initialization if LLM fails - fall back to embedding mode
+                    }
+                }
             } else {
                 warn!("LLM backend requested but no LLM config provided");
             }
@@ -162,6 +394,28 @@ impl MLEngine {
         
         info!("ML Engine initialized successfully");
         Ok(())
+    }
+
+    /// Initialize LLM engine with error handling
+    async fn initialize_llm_engine(&self, llm_config: crate::llm_wrapper::LLMConfig) -> Result<crate::llm_wrapper::LLMEngine> {
+        // Validate model file first
+        let engine = crate::llm_wrapper::LLMEngine::new(llm_config)?;
+        
+        // Check if model file exists before attempting to load
+        if let Err(e) = engine.validate_model_file() {
+            return Err(anyhow::anyhow!("LLM model validation failed: {}", e));
+        }
+        
+        // Attempt to load the model
+        engine.load_model().await
+            .context("Failed to load LLM model")?;
+        
+        // Verify the model is actually loaded
+        if !engine.is_loaded().await {
+            return Err(anyhow::anyhow!("LLM model failed to load properly"));
+        }
+        
+        Ok(engine)
     }
 
     /// Load embedding model from HuggingFace Hub
@@ -459,71 +713,96 @@ impl MLEngine {
 
     /// Generate documentation for an API provider using LLM
     pub async fn generate_documentation(&self, provider: &str, context: &str) -> Result<String> {
+        // Try LLM generation if available
         if let Some(llm_engine) = &self.llm_engine {
-            let prompt = format!(
-                "Generate comprehensive API documentation for the {} provider. \n\nContext: {}\n\nInclude:\n1. Overview and description\n2. Authentication methods\n3. Common endpoints and usage examples\n4. Configuration examples\n5. Best practices\n\nDocumentation:",
-                provider, context
-            );
-            
-            match llm_engine.generate_text(&prompt).await {
-                Ok(doc) => Ok(doc),
-                Err(e) => {
-                    warn!("LLM documentation generation failed: {}, falling back to template", e);
-                    Ok(self.generate_template_documentation(provider))
+            // Check if model is still loaded
+            if llm_engine.is_loaded().await {
+                let prompt = format!(
+                    "Generate comprehensive API documentation for the {} provider. \n\nContext: {}\n\nInclude:\n1. Overview and description\n2. Authentication methods\n3. Common endpoints and usage examples\n4. Configuration examples\n5. Best practices\n\nDocumentation:",
+                    provider, context
+                );
+                
+                match llm_engine.generate_text(&prompt).await {
+                    Ok(doc) => {
+                        info!("✅ Generated documentation for {} using LLM", provider);
+                        return Ok(doc);
+                    },
+                    Err(e) => {
+                        warn!("❌ LLM documentation generation failed for {}: {}", provider, e);
+                    }
                 }
+            } else {
+                warn!("LLM engine not loaded, cannot generate documentation");
             }
-        } else {
-            // Fallback to template-based documentation
-            Ok(self.generate_template_documentation(provider))
         }
+        
+        // Fallback to template-based documentation
+        warn!("Using template fallback for {} documentation", provider);
+        Ok(self.generate_template_documentation(provider))
     }
 
     /// Generate usage examples for an API key using LLM
     pub async fn generate_usage_examples(&self, provider: &str, api_key_format: &str) -> Result<Vec<String>> {
+        // Try LLM generation if available
         if let Some(llm_engine) = &self.llm_engine {
-            let prompt = format!(
-                "Generate 3 practical code examples for using the {} API with the key format: {}.\n\nProvide examples in different programming languages (Python, JavaScript, curl) showing:\n1. Basic API call\n2. Authentication setup\n3. Error handling\n\nExamples:",
-                provider, api_key_format
-            );
-            
-            match llm_engine.generate_text(&prompt).await {
-                Ok(examples_text) => {
-                    // Parse the generated text into individual examples
-                    let examples: Vec<String> = examples_text
-                        .split("```")
-                        .filter(|s| !s.trim().is_empty())
-                        .map(|s| s.trim().to_string())
-                        .collect();
-                    Ok(examples)
-                }
-                Err(e) => {
-                    warn!("LLM example generation failed: {}, falling back to templates", e);
-                    Ok(self.generate_template_examples(provider))
+            if llm_engine.is_loaded().await {
+                let prompt = format!(
+                    "Generate 3 practical code examples for using the {} API with the key format: {}.\n\nProvide examples in different programming languages (Python, JavaScript, curl) showing:\n1. Basic API call\n2. Authentication setup\n3. Error handling\n\nExamples:",
+                    provider, api_key_format
+                );
+                
+                match llm_engine.generate_text(&prompt).await {
+                    Ok(examples_text) => {
+                        info!("✅ Generated usage examples for {} using LLM", provider);
+                        // Parse the generated text into individual examples
+                        let examples: Vec<String> = examples_text
+                            .split("```")
+                            .filter(|s| !s.trim().is_empty())
+                            .map(|s| s.trim().to_string())
+                            .collect();
+                        
+                        // Ensure we have at least some examples
+                        if !examples.is_empty() {
+                            return Ok(examples);
+                        }
+                    }
+                    Err(e) => {
+                        warn!("❌ LLM example generation failed for {}: {}", provider, e);
+                    }
                 }
             }
-        } else {
-            Ok(self.generate_template_examples(provider))
         }
+        
+        // Fallback to template examples
+        warn!("Using template fallback for {} usage examples", provider);
+        Ok(self.generate_template_examples(provider))
     }
 
     /// Generate configuration template using LLM
     pub async fn generate_config_template(&self, provider: &str, environment: &str) -> Result<String> {
+        // Try LLM generation if available
         if let Some(llm_engine) = &self.llm_engine {
-            let prompt = format!(
-                "Generate a configuration template for {} API in {} environment.\n\nInclude:\n1. Environment variables setup\n2. Configuration file examples\n3. Security best practices\n4. Common settings\n\nTemplate:",
-                provider, environment
-            );
-            
-            match llm_engine.generate_text(&prompt).await {
-                Ok(config) => Ok(config),
-                Err(e) => {
-                    warn!("LLM config generation failed: {}, falling back to template", e);
-                    Ok(self.generate_template_config(provider, environment))
+            if llm_engine.is_loaded().await {
+                let prompt = format!(
+                    "Generate a configuration template for {} API in {} environment.\n\nInclude:\n1. Environment variables setup\n2. Configuration file examples\n3. Security best practices\n4. Common settings\n\nTemplate:",
+                    provider, environment
+                );
+                
+                match llm_engine.generate_text(&prompt).await {
+                    Ok(config) => {
+                        info!("✅ Generated config template for {} using LLM", provider);
+                        return Ok(config);
+                    },
+                    Err(e) => {
+                        warn!("❌ LLM config generation failed for {}: {}", provider, e);
+                    }
                 }
             }
-        } else {
-            Ok(self.generate_template_config(provider, environment))
         }
+        
+        // Fallback to template config
+        warn!("Using template fallback for {} config", provider);
+        Ok(self.generate_template_config(provider, environment))
     }
 
     // Fallback template methods

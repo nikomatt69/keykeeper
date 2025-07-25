@@ -136,8 +136,8 @@ export interface LLMConfig {
     provider: string; // "openai" | "local"
     model: string;
     temperature: number;
-    max_tokens: number;
-    api_key?: string;
+    max_tokens: number; // Backend expects snake_case: max_tokens
+    api_key?: string; // Backend expects snake_case: api_key
 }
 
 export interface LLMResponse {
@@ -781,7 +781,11 @@ export class TauriAPI {
     // ===============================
 
     static async processWithLLM(request: LLMRequest): Promise<LLMResponse> {
-        return await invoke('process_with_llm', { request });
+        return await invoke('process_with_llm', {
+            prompt: request.prompt,
+            context: request.context || null,
+            config: request.config
+        });
     }
 
     static async clearLLMCache(): Promise<string> {

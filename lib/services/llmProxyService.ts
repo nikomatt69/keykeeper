@@ -24,15 +24,21 @@ export interface LLMResponse {
   metadata: {
     model: string;
     tokens: number;
-    completionReason: string;
+    completion_reason: string; // Match backend snake_case
+    cached: boolean; // Match backend structure
   };
   error?: string;
+}
+
+interface CachedResponse {
+  response: LLMResponse;
+  timestamp: number;
 }
 
 export class LLMProxyService {
   private static instance: LLMProxyService;
   private config: LLMProxyConfig;
-  private cache = new Map<string, LLMResponse>();
+  private cache = new Map<string, CachedResponse>();
   private cacheDuration = 24 * 60 * 60 * 1000; // 24 hours
 
   private constructor(config: Partial<LLMProxyConfig> = {}) {
@@ -72,9 +78,10 @@ export class LLMProxyService {
     const cacheKey = this.getCacheKey(prompt, context);
     const cached = this.cache.get(cacheKey);
 
-    if (cached && this.isCacheValid(Date.now())) {
+    // Fix: Use cached timestamp instead of current timestamp for validation
+    if (cached && cached.timestamp && this.isCacheValid(cached.timestamp)) {
       console.log('Returning cached LLM response');
-      return cached;
+      return cached.response;
     }
 
     try {
@@ -87,6 +94,7 @@ export class LLMProxyService {
       });
 
       // Call the Tauri backend to process with LLM
+      // Note: Backend expects flat parameters, not nested config object
       const response = await invoke<LLMResponse>('process_with_llm', {
         prompt,
         context,
@@ -94,13 +102,16 @@ export class LLMProxyService {
           provider: mergedConfig.provider,
           model: mergedConfig.model,
           temperature: mergedConfig.temperature,
-          max_tokens: mergedConfig.maxTokens,
-          api_key: mergedConfig.apiKey,
+          max_tokens: mergedConfig.maxTokens, // Backend expects snake_case: max_tokens
+          api_key: mergedConfig.apiKey, // Backend expects snake_case: api_key
         }
       });
 
-      // Cache the successful response
-      this.cache.set(cacheKey, response);
+      // Cache the successful response with timestamp
+      this.cache.set(cacheKey, {
+        response,
+        timestamp: Date.now()
+      });
       console.log('LLM response received, cached with key:', cacheKey.substring(0, 32) + '...');
       return response;
     } catch (error) {
@@ -281,6 +292,18 @@ export class LLMProxyService {
     } catch (error) {
       console.error('❌ Failed to initialize local LLM engine:', error);
       this.config.useLocalLLM = false;
+
+      // Provide more specific error information
+      if (typeof error === 'string') {
+        if (error.includes('Model file not found')) {
+          console.error('Model file not found. Please check the model path:', config.model_path);
+        } else if (error.includes('Model validation failed')) {
+          console.error('Model validation failed. The model file might be corrupted or invalid.');
+        } else if (error.includes('Failed to load model')) {
+          console.error('Failed to load model. Check if the model is compatible with the LLM engine.');
+        }
+      }
+
       return false;
     }
   }
@@ -363,12 +386,12 @@ export class LLMProxyService {
   private extractSections(content: string): DocumentationSection[] {
     const sections: DocumentationSection[] = [];
     const lines = content.split('\n');
-    let currentSection: Partial<DocumentationSection> | null = null;
+    let currentSection: Partial<DocumentationSection> | null | undefined;
 
     lines.forEach(line => {
       if (line.startsWith('#')) {
         // Save previous section
-        if (currentSection && currentSection.title) {
+        if (currentSection && typeof currentSection.title === 'string' && currentSection.title.trim()) {
           sections.push({
             title: currentSection.title,
             content: currentSection.content || '',
@@ -385,16 +408,19 @@ export class LLMProxyService {
           level
         };
       } else if (currentSection) {
-        currentSection.content = (currentSection.content || '') + line + '\n';
+        if (currentSection.content === undefined) {
+          currentSection.content = '';
+        }
+        currentSection.content += line + '\n';
       }
     });
 
     // Add final section
-    if (currentSection && currentSection) {
+    if (currentSection && currentSection.title) {
       sections.push({
-        title: currentSection,
-        content: currentSection || '',
-        level: currentSection || 1,
+        title: currentSection.title,
+        content: currentSection.content || '',
+        level: currentSection.level || 1,
         type: 'overview'
       });
     }

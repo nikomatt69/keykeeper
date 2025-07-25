@@ -1,5 +1,4 @@
 use crate::api_generator::ApiProvider;
-use crate::llm_proxy::{LLMConfig, LLMRequest, process_with_llm};
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use reqwest;
@@ -7,7 +6,6 @@ use scraper::{Html, Selector};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::fs;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ApiDocumentation {

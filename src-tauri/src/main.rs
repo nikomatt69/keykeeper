@@ -6554,10 +6554,17 @@ pub fn run() {
             ml_commands::reinitialize_ml_engine,
             ml_commands::get_ml_config,
             ml_commands::detect_context,
+            // ML LLM-enhanced commands
+            ml_commands::generate_documentation,
+            ml_commands::generate_usage_examples,
+            ml_commands::generate_config_template,
+            ml_commands::get_config_recommendations,
+            ml_commands::diagnose_ml_setup,
             // LLM Proxy commands
             llm_proxy::process_with_llm,
             llm_proxy::clear_llm_cache,
             llm_proxy::get_llm_cache_stats,
+            llm_proxy::is_llm_engine_loaded,
             // API Generator Commands
             api_generator_commands::get_api_providers,
             api_generator_commands::scrape_api_documentation,

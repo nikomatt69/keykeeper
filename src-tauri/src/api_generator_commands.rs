@@ -22,22 +22,25 @@ impl ApiGeneratorState {
 /// Get all available API providers
 #[command]
 pub async fn get_api_providers(
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<Vec<ApiProvider>, String> {
-    let service = state.service.lock().await;
-    Ok(service.get_providers())
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
+    let providers = service.get_providers();
+    Ok(providers)
 }
 
 /// Scrape documentation for an API provider
 #[command]
 pub async fn scrape_api_documentation(
-    provider_id: String,
-    docs_url: String,
-    state: State<'_, ApiGeneratorState>
+    providerId: String,
+    docsUrl: String,
+    app_state: State<'_, crate::AppState>
 ) -> Result<DocScrapingResult, String> {
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     
-    service.scrape_documentation(&provider_id, &docs_url)
+    service.scrape_documentation(&providerId, &docsUrl)
         .await
         .map_err(|e| format!("Failed to scrape documentation: {}", e))
 }
@@ -46,9 +49,10 @@ pub async fn scrape_api_documentation(
 #[command]
 pub async fn generate_api_configuration(
     request: GenerationRequest,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<GeneratedConfig, String> {
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     
     service.generate_configuration(request)
         .await
@@ -59,9 +63,10 @@ pub async fn generate_api_configuration(
 #[command]
 pub async fn detect_provider_from_env(
     env_var_name: String,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<Option<DetectionResult>, String> {
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     let providers = service.get_providers();
     
     for provider in providers {
@@ -96,7 +101,7 @@ pub async fn detect_provider_from_env(
 pub async fn generate_better_auth_config(
     env_vars: std::collections::HashMap<String, String>,
     features: Vec<String>,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<GeneratedConfig, String> {
     let request = GenerationRequest {
         provider_id: "better-auth".to_string(),
@@ -106,7 +111,8 @@ pub async fn generate_better_auth_config(
         output_path: "./".to_string(),
     };
     
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     service.generate_configuration(request)
         .await
         .map_err(|e| format!("Failed to generate Better Auth configuration: {}", e))
@@ -116,7 +122,7 @@ pub async fn generate_better_auth_config(
 #[command]
 pub async fn generate_openai_config(
     env_vars: std::collections::HashMap<String, String>,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<GeneratedConfig, String> {
     let request = GenerationRequest {
         provider_id: "openai".to_string(),
@@ -126,7 +132,8 @@ pub async fn generate_openai_config(
         output_path: "./".to_string(),
     };
     
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     service.generate_configuration(request)
         .await
         .map_err(|e| format!("Failed to generate OpenAI configuration: {}", e))
@@ -136,9 +143,10 @@ pub async fn generate_openai_config(
 #[command]
 pub async fn get_provider_templates(
     provider_id: String,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<Vec<crate::api_generator::ConfigTemplate>, String> {
-    let service = state.service.lock().await;
+    let api_generator = app_state.api_generator.lock().await;
+    let service = api_generator.service.lock().await;
     let providers = service.get_providers();
     
     if let Some(provider) = providers.iter().find(|p| p.id == provider_id) {
@@ -152,11 +160,11 @@ pub async fn get_provider_templates(
 #[command]
 pub async fn preview_generated_config(
     request: GenerationRequest,
-    state: State<'_, ApiGeneratorState>
+    app_state: State<'_, crate::AppState>
 ) -> Result<GeneratedConfig, String> {
     // This is the same as generate_api_configuration for now
     // In the future, we might want different behavior for preview
-    generate_api_configuration(request, state).await
+    generate_api_configuration(request, app_state).await
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

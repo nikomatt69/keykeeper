@@ -1,11 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tokio::fs;
 use anyhow::{Context, Result};
 use reqwest;
 use scraper::{Html, Selector};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ApiProvider {
     pub id: String,
     pub name: String,
@@ -20,6 +20,7 @@ pub struct ApiProvider {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct ConfigTemplate {
     pub id: String,
     pub name: String,
@@ -33,6 +34,7 @@ pub struct ConfigTemplate {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct GenerationRequest {
     pub provider_id: String,
     pub env_vars: HashMap<String, String>,

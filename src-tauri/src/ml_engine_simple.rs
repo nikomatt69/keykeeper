@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tracing::{debug, info, warn};
+use tauri::Manager;
 
 /// Configuration for ML models
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -18,11 +19,143 @@ pub struct MLConfig {
 impl Default for MLConfig {
     fn default() -> Self {
         Self {
-            model_cache_path: PathBuf::from("./ml_models"),
+            model_cache_path: Self::get_default_model_path(),
             max_suggestions: 5,
             learning_rate: 0.1,
             similarity_threshold: 0.3,
         }
+    }
+}
+
+impl MLConfig {
+    /// Get the default model path using Tauri's resource directory
+    pub fn get_default_model_path() -> PathBuf {
+        // Development fallbacks when no app handle is available
+        let dev_paths = [
+            "ml_models",
+            "src-tauri/ml_models", 
+            "../src-tauri/ml_models",
+            "./ml_models",
+            "models",
+            "src-tauri/models",
+            "../src-tauri/models",
+        ];
+        
+        for path_str in &dev_paths {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                return path;
+            }
+        }
+        
+        // Final fallback - create in app data directory
+        warn!("No existing model directory found, using fallback path");
+        PathBuf::from("ml_models")
+    }
+    
+    /// Create MLConfig with proper resource path resolution
+    pub fn with_app_handle(app_handle: &tauri::AppHandle) -> Result<Self> {
+        let model_path = Self::resolve_model_path(app_handle)?;
+        Ok(Self {
+            model_cache_path: model_path,
+            ..Default::default()
+        })
+    }
+    
+    /// Resolve model path using Tauri app handle for resource resolution
+    pub fn resolve_model_path(app_handle: &tauri::AppHandle) -> Result<PathBuf> {
+        // Try bundled resources first (production) - use asset resolver for proper Tauri v2 pattern
+        let resolver = app_handle.asset_resolver();
+        
+        // Check if bundled model exists using asset resolver
+        if let Some(_asset) = resolver.get("models/gte-small.Q6_K.gguf".to_string()) {
+            // Get the resource directory path
+            if let Ok(resource_path) = app_handle.path().resource_dir() {
+                let models_path = resource_path.join("models");
+                if models_path.exists() {
+                    info!("Using bundled models directory: {:?}", models_path);
+                    return Ok(models_path);
+                }
+            }
+        }
+        
+        // Try app data directory
+        if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+            let models_path = app_data_dir.join("models");
+            // Create directory if it doesn't exist
+            if let Err(e) = std::fs::create_dir_all(&models_path) {
+                warn!("Failed to create app data models directory: {}", e);
+            } else {
+                info!("Using app data models directory: {:?}", models_path);
+                return Ok(models_path);
+            }
+        }
+        
+        // Development fallbacks
+        let dev_paths = [
+            "ml_models",
+            "src-tauri/ml_models", 
+            "../src-tauri/ml_models",
+            "models",
+            "src-tauri/models",
+            "../src-tauri/models",
+        ];
+        
+        for path_str in &dev_paths {
+            let path = PathBuf::from(path_str);
+            if path.exists() {
+                info!("Using development models directory: {:?}", path);
+                return Ok(path);
+            }
+        }
+        
+        Err(anyhow::anyhow!(
+            "Could not resolve models directory path. This may indicate:\n\
+            1. Missing bundled resources in production build\n\
+            2. No writable app data directory\n\
+            3. Missing development model files\n\
+            \n\
+            Expected locations:\n\
+            - Bundled: [app]/resources/models/\n\
+            - App data: [app_data]/models/\n\
+            - Development: ./ml_models/, ./models/, etc.\n\
+            \n\
+            Please ensure the model files are properly bundled or available in development."
+        ))
+    }
+    /// Validate the ML configuration
+    pub fn validate(&self) -> Result<()> {
+        // Check max_suggestions is reasonable
+        if self.max_suggestions == 0 {
+            return Err(anyhow::anyhow!("Max suggestions must be greater than 0"));
+        }
+        if self.max_suggestions > 100 {
+            warn!("Large max_suggestions ({}) may impact performance", self.max_suggestions);
+        }
+
+        // Check learning_rate is reasonable
+        if self.learning_rate <= 0.0 || self.learning_rate > 1.0 {
+            return Err(anyhow::anyhow!(
+                "Learning rate must be between 0.0 and 1.0, got {}",
+                self.learning_rate
+            ));
+        }
+
+        // Check similarity_threshold is reasonable
+        if self.similarity_threshold < 0.0 || self.similarity_threshold > 1.0 {
+            return Err(anyhow::anyhow!(
+                "Similarity threshold must be between 0.0 and 1.0, got {}",
+                self.similarity_threshold
+            ));
+        }
+
+        // Create model cache directory if it doesn't exist
+        if !self.model_cache_path.exists() {
+            std::fs::create_dir_all(&self.model_cache_path)
+                .context("Failed to create model cache directory")?;
+        }
+
+        Ok(())
     }
 }
 
@@ -642,5 +775,37 @@ impl MLEngine {
         }
         
         Ok(stats)
+    }
+
+    /// Generate documentation for an API provider
+    /// This is a simplified implementation that returns template-based documentation
+    pub async fn generate_documentation(&self, provider: &str, _context: &str) -> Result<String> {
+        Ok(format!(
+            "# {} API Documentation\\n\\n## Overview\\nDocumentation for {} API integration.\\n\\n## Authentication\\nRefer to the official {} documentation for authentication details.\\n\\n## Usage\\nPlease check the official documentation for usage examples.",
+            provider, provider, provider
+        ))
+    }
+
+    /// Generate usage examples for an API key
+    /// This is a simplified implementation that returns template-based examples
+    pub async fn generate_usage_examples(&self, provider: &str, _api_key_format: &str) -> Result<Vec<String>> {
+        Ok(vec![
+            format!("# {} Python Example\\nimport requests\\n\\napi_key = 'your_api_key'\\nresponse = requests.get('https://api.{}.com/endpoint', headers={{'Authorization': f'Bearer {{api_key}}'}})", provider, provider.to_lowercase()),
+            format!("// {} JavaScript Example\\nconst apiKey = 'your_api_key';\\nfetch('https://api.{}.com/endpoint', {{\\n  headers: {{'Authorization': `Bearer ${{apiKey}}`}}\\n}}).then(response => response.json())", provider, provider.to_lowercase()),
+            format!("# {} cURL Example\\ncurl -H \\\"Authorization: Bearer your_api_key\\\" https://api.{}.com/endpoint", provider, provider.to_lowercase())
+        ])
+    }
+
+    /// Generate configuration template
+    /// This is a simplified implementation that returns a template-based configuration
+    pub async fn generate_config_template(&self, provider: &str, environment: &str) -> Result<String> {
+        Ok(format!(
+            "# {} Configuration - {} Environment\\n\\n{}_API_KEY=your_api_key_here\\n{}_BASE_URL=https://api.{}.com\\n{}_TIMEOUT=30\\n\\n# Add to your .env file",
+            provider, environment, 
+            provider.to_uppercase(), 
+            provider.to_uppercase(), 
+            provider.to_lowercase(),
+            provider.to_uppercase()
+        ))
     }
 }
