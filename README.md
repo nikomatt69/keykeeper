@@ -24,11 +24,7 @@
 KeyKeeper is an original project created and developed by [nikomatt69](https://github.com/nikomatt69). This repository and all its contents are fully protected as intellectual property. Unauthorized commercial use, copying, or distribution is strictly prohibited.  
 For commercial licensing information or inquiries, please contact: **nicom.19@icloud.com**
 
-**Launch & Product Hunt**  
-KeyKeeper is set to launch on [Product Hunt](https://www.producthunt.com/)!  
-Show your support and learn more by visiting the Product Hunt page:
 
-[![Product Hunt Badge](https://api.producthunt.com/widgets/embed-image/v1/featured.svg?post_id=000000&theme=light)](https://www.producthunt.com/posts/keykeeper)
 
 ---
 
