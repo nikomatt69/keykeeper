@@ -1,0 +1,86 @@
+[package]
+name = "keykeeper"
+version = "0.1.0"
+description = "A secure API key manager"
+authors = ["nikomatt69"]
+license = "AGPL-3.0"
+repository = "https://github.com/nikomatt69/keykeeper"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2.6.2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
+tauri-plugin-biometric = "2.0.0"
+tauri-plugin-keychain = "2.0.0"
+tauri-plugin-store = "2.0"
+tauri-plugin-window-state = "2.0"
+tauri-plugin-single-instance = "2.0"
+tauri-plugin-updater = "2.0"
+tauri-plugin-notification = "2.0"
+tauri-plugin-autostart = "2.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tokio = { version = "1.0", features = ["full"] }
+hyper = { version = "1.0", features = ["full"] }
+hyper-util = { version = "0.1", features = ["tokio", "server"] }
+http-body-util = "0.1"
+bytes = "1.0"
+tauri-plugin-log = "2"
+log = "0.4.27"
+env_logger = "0.11.8"
+bcrypt = "0.15"
+aes-gcm = "0.10"
+rand = "0.8"
+base64 = "0.21"
+chrono = { version = "0.4", features = ["serde"] }
+rustls = "0.22"
+tokio-rustls = "0.25"
+rcgen = "0.12"
+rsa = "0.9"
+pbkdf2 = "0.12"
+sha2 = "0.10"
+uuid = { version = "1.0", features = ["v4"] }
+webauthn-rs = "0.4"
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
+urlencoding = "2.1"
+tauri-plugin-persisted-scope = "2.3.0"
+keyring = "2.0"
+whoami = "1.4"
+tauri-plugin-deep-link = "2.4.0"
+tauri-plugin-keyring = "0.1.0"
+
+# ML Dependencies for local inference - using candle-transformers for GGUF support
+anyhow = "1.0"
+tracing = "0.1"
+async-trait = "0.1"
+# Note: rustformers/llm is archived, using candle ecosystem instead
+# llm = { version = "0.1.0-rc4", features = ["llama", "ggml-sys"] }
+tokenizers = "0.15"
+ndarray = "0.16.1"
+ndarray-npy = "0.9.1"
+numpy = { version = "0.25.0", optional = true }
+thiserror = "2.0.12"
+# Candle dependencies for existing ML functionality
+candle-core = "0.8.0"
+candle-nn = "0.8.0"
+candle-transformers = "0.8.0"
+hf-hub = { version = "0.3.0", features = ["tokio"] }
+
+# API Documentation Scraping and Generation
+reqwest = { version = "0.11", features = ["json"] }
+scraper = "0.19"
+regex = "1.10"
+md5 = "0.7"
+url = "2.5"
+
+[features]
+# This feature is used for production builds or when a dev server is not specified, DO NOT REMOVE!!
+custom-protocol = ["tauri/custom-protocol"]
+
+[target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
+tauri-plugin-single-instance = "2.0"

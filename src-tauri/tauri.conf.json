@@ -1,0 +1,105 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/schema.json",
+  "productName": "KeyKeeper",
+  "version": "0.1.0",
+  "identifier": "com.keykeeper.arm64os1",
+  "build": {
+    "beforeBuildCommand": "yarn build",
+    "beforeDevCommand": "yarn dev",
+    "devUrl": "http://localhost:3000",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "KeyKeeper",
+        "width": 1000,
+        "height": 700,
+        "minWidth": 800,
+        "minHeight": 600,
+        "center": true,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "transparent": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self' localhost:* ; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; worker-src 'self';",
+      "capabilities": [
+        "keykeeper-capabilities"
+      ],
+      "dangerousDisableAssetCspModification": false
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "DeveloperTool",
+    "copyright": "Copyright (c) 2024 nikomatt69",
+    "externalBin": [],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "resources": [
+      "models/*"
+    ],
+    "shortDescription": "A secure API key manager",
+    "longDescription": "KeyKeeper is a secure, local API key manager that keeps your keys safe and organized.",
+    "linux": {},
+    "macOS": {
+      "entitlements": null,
+      "exceptionDomain": "",
+      "frameworks": [],
+      "providerShortName": null,
+      "signingIdentity": null,
+      "minimumSystemVersion": "10.15",
+      "dmg": {
+        "appPosition": {
+          "x": 180,
+          "y": 170
+        },
+        "applicationFolderPosition": {
+          "x": 480,
+          "y": 170
+        },
+        "windowSize": {
+          "width": 660,
+          "height": 400
+        }
+      }
+    },
+    "windows": {
+      "allowDowngrades": true,
+      "certificateThumbprint": null,
+      "digestAlgorithm": null,
+      "nsis": null,
+      "signCommand": null,
+      "timestampUrl": null,
+      "tsp": false,
+      "webviewInstallMode": {
+        "silent": true,
+        "type": "downloadBootstrapper"
+      },
+      "wix": null
+    },
+    "iOS": {
+      "developmentTeam": "5FAU2JSAM3"
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "endpoints": [
+        "https://api.github.com/repos/nikoemme/keykeeper/releases/latest"
+      ],
+      "dialog": true,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY2Q0M5MDk5OTQ4RUI4QgpSV1NMNjBpWkNjbHNCandqUldSOWs0cEtCUGhJZXFGWnRCejdacXRqdk1jZVN4QlYxV0l3Sk1pbwo="
+    },
+    "fs": {}
+  }
+}

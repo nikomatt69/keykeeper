@@ -1,0 +1,492 @@
+{
+    "name": "keykeeper-vscode",
+    "displayName": "KeyKeeper Enterprise",
+    "description": "Enterprise-grade Secure API Key Management with .env Drag & Drop and Auto-Activation",
+    "version": "0.1.0",
+    "publisher": "nikoemme",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/nikomatt69/keykeeper.git"
+    },
+    "homepage": "https://github.com/nikomatt69/keykeeper",
+    "bugs": {
+        "url": "https://github.com/nikomatt69/keykeeper/issues"
+    },
+    "license": "MIT",
+    "engines": {
+        "vscode": "^1.74.0"
+    },
+    "categories": [
+        "Other",
+        "Snippets",
+        "Debuggers"
+    ],
+    "keywords": [
+        "api-keys",
+        "security",
+        "environment",
+        "secrets",
+        "development",
+        "enterprise",
+        "team",
+        "compliance",
+        "audit",
+        "encryption",
+        "drag-drop",
+        "workspace",
+        "auto-activation",
+        "project-detection"
+    ],
+    "activationEvents": [
+        "onStartupFinished"
+    ],
+    "main": "./out/extension.js",
+    "contributes": {
+        "commands": [
+            {
+                "command": "keykeeper.insertKey",
+                "title": "Insert API Key",
+                "category": "KeyKeeper",
+                "icon": "$(key)"
+            },
+            {
+                "command": "keykeeper.browseKeys",
+                "title": "Browse API Keys",
+                "category": "KeyKeeper",
+                "icon": "$(search)"
+            },
+            {
+                "command": "keykeeper.quickSearch",
+                "title": "Quick Search Keys",
+                "category": "KeyKeeper",
+                "icon": "$(search-fuzzy)"
+            },
+            {
+                "command": "keykeeper.syncProject",
+                "title": "Sync with KeyKeeper",
+                "category": "KeyKeeper",
+                "icon": "$(sync)"
+            },
+            {
+                "command": "keykeeper.createKey",
+                "title": "Create New API Key",
+                "category": "KeyKeeper",
+                "icon": "$(add)"
+            },
+            {
+                "command": "keykeeper.refreshKeys",
+                "title": "Refresh Keys",
+                "category": "KeyKeeper",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "keykeeper.openSettings",
+                "title": "Open KeyKeeper Settings",
+                "category": "KeyKeeper",
+                "icon": "$(settings-gear)"
+            },
+            {
+                "command": "keykeeper.login",
+                "title": "Login to KeyKeeper",
+                "category": "KeyKeeper",
+                "icon": "$(account)"
+            },
+            {
+                "command": "keykeeper.autoSyncWorkspace",
+                "title": "Auto-Sync Workspace",
+                "category": "KeyKeeper",
+                "icon": "$(sync)"
+            },
+            {
+                "command": "keykeeper.autoDetectAndGenerate",
+                "title": "🤖 Auto-Detect APIs and Generate Config",
+                "category": "KeyKeeper",
+                "icon": "$(wand)"
+            },
+            {
+                "command": "keykeeper.generateProviderConfig",
+                "title": "📝 Generate API Configuration",
+                "category": "KeyKeeper",
+                "icon": "$(file-code)"
+            },
+            {
+                "command": "keykeeper.smartGenerate",
+                "title": "✨ Smart Generate (Context-Aware)",
+                "category": "KeyKeeper",
+                "icon": "$(sparkle)"
+            },
+            {
+                "command": "keykeeper.showDocumentation",
+                "title": "📚 Show API Documentation",
+                "category": "KeyKeeper",
+                "icon": "$(book)"
+            },
+            {
+                "command": "keykeeper.addDocumentation",
+                "title": "📝 Add Documentation for Current API",
+                "category": "KeyKeeper",
+                "icon": "$(file-add)"
+            },
+            {
+                "command": "keykeeper.searchDocumentation",
+                "title": "🔍 Search API Documentation",
+                "category": "KeyKeeper",
+                "icon": "$(search)"
+            },
+            {
+                "command": "keykeeper.checkMLStatus",
+                "title": "🤖 Check ML Engine Status",
+                "category": "KeyKeeper",
+                "icon": "$(pulse)"
+            },
+            {
+                "command": "keykeeper.initializeMLEngine",
+                "title": "🚀 Initialize ML Engine",
+                "category": "KeyKeeper",
+                "icon": "$(play)"
+            },
+            {
+                "command": "keykeeper.reinitializeMLEngine",
+                "title": "🔄 Reinitialize ML Engine",
+                "category": "KeyKeeper",
+                "icon": "$(refresh)"
+            },
+            {
+                "command": "keykeeper.getMLSuggestions",
+                "title": "💡 Get Smart Suggestions",
+                "category": "KeyKeeper",
+                "icon": "$(lightbulb)"
+            },
+            {
+                "command": "keykeeper.detectContext",
+                "title": "🔍 Detect Current Context",
+                "category": "KeyKeeper",
+                "icon": "$(search-fuzzy)"
+            },
+            {
+                "command": "keykeeper.recordMLUsage",
+                "title": "📊 Record ML Usage",
+                "category": "KeyKeeper",
+                "icon": "$(graph-line)"
+            },
+            {
+                "command": "keykeeper.showMLStats",
+                "title": "📈 Show ML Statistics",
+                "category": "KeyKeeper",
+                "icon": "$(graph)"
+            },
+            {
+                "command": "keykeeper.exportMLData",
+                "title": "📤 Export ML Data",
+                "category": "KeyKeeper",
+                "icon": "$(export)"
+            },
+            {
+                "command": "keykeeper.resetMLData",
+                "title": "🗑️ Reset ML Data",
+                "category": "KeyKeeper",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "keykeeper.createNewChat",
+                "title": "💬 Create New Chat",
+                "category": "KeyKeeper",
+                "icon": "$(add)"
+            },
+            {
+                "command": "keykeeper.quickChat",
+                "title": "⚡ Quick Chat",
+                "category": "KeyKeeper",
+                "icon": "$(comment)"
+            },
+            {
+                "command": "keykeeper.openChatSession",
+                "title": "📖 Open Chat Session",
+                "category": "KeyKeeper",
+                "icon": "$(comment-discussion)"
+            },
+            {
+                "command": "keykeeper.deleteChatSession",
+                "title": "🗑️ Delete Chat Session",
+                "category": "KeyKeeper",
+                "icon": "$(trash)"
+            },
+            {
+                "command": "keykeeper.refreshChat",
+                "title": "🔄 Refresh Chat",
+                "category": "KeyKeeper",
+                "icon": "$(refresh)"
+            }
+        ],
+        "keybindings": [
+            {
+                "command": "keykeeper.quickSearch",
+                "key": "ctrl+shift+k",
+                "mac": "cmd+shift+k",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.insertKey",
+                "key": "ctrl+shift+i",
+                "mac": "cmd+shift+i",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.autoDetectAndGenerate",
+                "key": "ctrl+shift+g",
+                "mac": "cmd+shift+g",
+                "when": "resourceExtname == .env"
+            },
+            {
+                "command": "keykeeper.smartGenerate",
+                "key": "ctrl+alt+g",
+                "mac": "cmd+alt+g",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.showDocumentation",
+                "key": "ctrl+shift+d",
+                "mac": "cmd+shift+d",
+                "when": "editorTextFocus"
+            },
+            {
+                "command": "keykeeper.searchDocumentation",
+                "key": "ctrl+shift+f",
+                "mac": "cmd+shift+f"
+            },
+            {
+                "command": "keykeeper.quickChat",
+                "key": "ctrl+shift+c",
+                "mac": "cmd+shift+c"
+            },
+            {
+                "command": "keykeeper.createNewChat",
+                "key": "ctrl+alt+c",
+                "mac": "cmd+alt+c"
+            }
+        ],
+        "views": {
+            "keykeeper": [
+                {
+                    "id": "keykeeperProjects",
+                    "name": "Projects",
+                    "icon": "$(folder)"
+                },
+                {
+                    "id": "keykeeperKeys",
+                    "name": "API Keys",
+                    "icon": "$(key)"
+                },
+                {
+                    "id": "keykeeperRecent",
+                    "name": "Recent",
+                    "icon": "$(clock)"
+                },
+                {
+                    "id": "keykeeperDocumentation",
+                    "name": "Documentation",
+                    "icon": "$(book)"
+                },
+                {
+                    "id": "keykeeperApiProviders",
+                    "name": "API Providers",
+                    "icon": "$(server)"
+                },
+                {
+                    "id": "keykeeperMLEngine",
+                    "name": "ML Engine",
+                    "icon": "$(pulse)"
+                },
+                {
+                    "id": "keykeeperChat",
+                    "name": "Chat",
+                    "icon": "$(comment-discussion)"
+                }
+            ]
+        },
+        "viewsContainers": {
+            "activitybar": [
+                {
+                    "id": "keykeeper",
+                    "title": "KeyKeeper",
+                    "icon": "$(key)"
+                }
+            ]
+        },
+        "menus": {
+            "commandPalette": [
+                {
+                    "command": "keykeeper.insertKey",
+                    "when": "editorTextFocus"
+                },
+                {
+                    "command": "keykeeper.quickSearch",
+                    "when": "editorTextFocus"
+                }
+            ],
+            "editor/context": [
+                {
+                    "command": "keykeeper.insertKey",
+                    "when": "editorTextFocus",
+                    "group": "keykeeper"
+                }
+            ],
+            "view/title": [
+                {
+                    "command": "keykeeper.refreshKeys",
+                    "when": "view == keykeeperKeys",
+                    "group": "navigation"
+                },
+                {
+                    "command": "keykeeper.createKey",
+                    "when": "view == keykeeperKeys",
+                    "group": "navigation"
+                },
+                {
+                    "command": "keykeeper.syncProject",
+                    "when": "view == keykeeperProjects",
+                    "group": "navigation"
+                },
+                {
+                    "command": "keykeeper.reinitializeMLEngine",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(refresh)"
+                },
+                {
+                    "command": "keykeeper.getMLSuggestions",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(lightbulb)"
+                },
+                {
+                    "command": "keykeeper.showMLStats",
+                    "when": "view == keykeeperMLEngine",
+                    "group": "navigation",
+                    "icon": "$(graph)"
+                },
+                {
+                    "command": "keykeeper.createNewChat",
+                    "when": "view == keykeeperChat",
+                    "group": "navigation",
+                    "icon": "$(add)"
+                },
+                {
+                    "command": "keykeeper.quickChat",
+                    "when": "view == keykeeperChat",
+                    "group": "navigation",
+                    "icon": "$(comment)"
+                },
+                {
+                    "command": "keykeeper.refreshChat",
+                    "when": "view == keykeeperChat",
+                    "group": "navigation",
+                    "icon": "$(refresh)"
+                }
+            ],
+            "view/item/context": [
+                {
+                    "command": "keykeeper.insertKey",
+                    "when": "view == keykeeperKeys && viewItem == apikey",
+                    "group": "inline"
+                }
+            ]
+        },
+        "configuration": {
+            "title": "KeyKeeper",
+            "properties": {
+                "keykeeper.autoSync": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Automatically sync with KeyKeeper desktop app"
+                },
+                "keykeeper.insertFormat": {
+                    "type": "string",
+                    "enum": [
+                        "value",
+                        "environment",
+                        "process.env"
+                    ],
+                    "default": "process.env",
+                    "description": "Format for inserting API keys"
+                },
+                "keykeeper.showNotifications": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show KeyKeeper notifications"
+                },
+                "keykeeper.defaultProject": {
+                    "type": "string",
+                    "default": "",
+                    "description": "Default project for new keys"
+                },
+                "keykeeper.appPort": {
+                    "type": "number",
+                    "default": 27182,
+                    "description": "KeyKeeper desktop app port"
+                },
+                "keykeeper.enterprise.auditLogging": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Enable audit logging for compliance"
+                },
+                "keykeeper.enterprise.securityWarnings": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Show security warnings for unsafe key usage"
+                },
+                "keykeeper.enterprise.contextAnalysis": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Analyze code context for smart key suggestions"
+                },
+                "keykeeper.enterprise.teamSync": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable team synchronization features"
+                },
+                "keykeeper.enterprise.rateLimiting": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Respect API rate limiting settings"
+                },
+                "keykeeper.enterprise.encryptionLevel": {
+                    "type": "string",
+                    "enum": [
+                        "standard",
+                        "enhanced",
+                        "maximum"
+                    ],
+                    "default": "enhanced",
+                    "description": "Encryption level for data transmission"
+                }
+            }
+        }
+    },
+    "scripts": {
+        "vscode:prepublish": "npm run compile",
+        "compile": "webpack --mode production",
+        "watch": "webpack --mode development --watch",
+        "package": "npm run compile && vsce package",
+        "publish": "vsce publish",
+        "vsce:login": "vsce login cadcamfun",
+        "vsce:publish:minor": "vsce publish minor",
+        "vsce:publish:patch": "vsce publish patch",
+        "vsce:publish:major": "vsce publish major",
+        "vsce:show": "vsce show cadcamfun.keykeeper-vscode",
+        "vsce:ls": "vsce ls-publishers"
+    },
+    "devDependencies": {
+        "@types/node": "16.x",
+        "@types/vscode": "^1.74.0",
+        "@types/ws": "^8.18.1",
+        "ts-loader": "^9.5.2",
+        "typescript": "^4.9.4",
+        "webpack": "^5.100.2",
+        "webpack-cli": "^6.0.1"
+    },
+    "dependencies": {
+        "axios": "^1.6.0",
+        "ws": "^8.14.0"
+    }
+}

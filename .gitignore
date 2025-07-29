@@ -1,0 +1,97 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+.env
+.env.production
+src-tauri/models/Qwen3-0.6B.Q2_K.gguf
+src-tauri/models/Qwen3.5-0.6B.Q2_K.gguf
+# Testing
+coverage/
+.CLAUDE.md
+# Next.js
+.next/
+out/
+.windsurf
+plan.md
+# Production
+build/
+dist/
+START_HERE.md
+setup-native-migration.sh
+reset-auth.js
+GEMINI.md
+CLAUDE.md
+test-keyring.js
+.yarnrc.yml
+# Misc
+.DS_Store
+*.pem
+CLAUDE.md
+ENTERPRISE_ROADMAP.md
+GEMINI.md
+plan.md
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.CLAUDE
+
+# Local env files - SECURITY CRITICAL
+.env*.local
+.env*
+!.env.example
+!.env.template
+!.env.mobile
+
+# Security Files - NEVER COMMIT
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+.secrets/
+private/
+.private/
+certificates/
+keys/
+
+# Backup files with potential secrets
+*.backup
+*.bak
+*.orig
+
+# Temporary files
+.tmp/
+tmp/
+temp/
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Tauri
+src-tauri/target/
+src-tauri/Cargo.lock
+
+# ML Models - Large files
+src-tauri/ml_models/
+*.gguf
+START_HERE.md
+setup-native-migration.sh
+reset-auth.js
+GEMINI.md
+CLAUDE.md
+.yarnrc.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
