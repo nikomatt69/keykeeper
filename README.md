@@ -22,7 +22,7 @@
 
 **Intellectual Property & Author**  
 KeyKeeper is an original project created and developed by [nikomatt69](https://github.com/nikomatt69). This repository and all its contents are fully protected as intellectual property. Unauthorized commercial use, copying, or distribution is strictly prohibited.  
-For commercial licensing information or inquiries, please contact: **nicom.19@icloud.com**
+
 
 
 
