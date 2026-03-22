@@ -9,8 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Folder,
-  Book,
-  BookOpen
+  Book
 } from 'lucide-react'
 import { useAppStore } from '../lib/store'
 import { save } from '@tauri-apps/plugin-dialog'
@@ -175,7 +174,7 @@ export default function Sidebar() {
                     <div key={project.id} className="flex justify-between items-center px-3 py-1">
                       <span className="truncate text-caption">{project.name}</span>
                       <span className="tag-native" style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: 'var(--color-primary-50)', color: 'var(--color-primary-600)' }}>
-                        {project.settings.default_environment}
+                        {project.settings?.defaultEnvironment ?? 'development'}
                       </span>
                     </div>
                   ))

@@ -62,6 +62,15 @@ export const BottomSheet: React.FC<BottomSheetProps> = ({
               <div
                 className="absolute top-2 left-1/2 w-12 h-1 bg-gray-300 transform -translate-x-1/2 cursor-pointer dark:bg-gray-600"
                 onClick={handleToggleCollapse}
+                role="button"
+                tabIndex={0}
+                aria-label="Toggle bottom sheet"
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault()
+                    handleToggleCollapse()
+                  }
+                }}
               />
 
               {isCollapsed ? (

@@ -361,17 +361,6 @@ export interface GenerationContext {
     tsconfig?: any
 }
 
-export interface UserPreferences {
-    codeStyle: 'typescript' | 'javascript'
-    useSemicolons: boolean
-    indentation: 'spaces' | 'tabs'
-    indentSize: number
-    generateTypes: boolean
-    includeJsdoc: boolean
-    importStyle: 'default' | 'named' | 'namespace'
-    useAsyncAwait: boolean
-}
-
 export interface EnhancedGenerationResult {
     files: GeneratedTemplateFile[]
     dependencies: string[]
@@ -579,6 +568,14 @@ export interface UserPreferences {
     language: string
     timezone: string
     notifications: NotificationConfig
+    codeStyle: 'typescript' | 'javascript'
+    useSemicolons: boolean
+    indentation: 'spaces' | 'tabs'
+    indentSize: number
+    generateTypes: boolean
+    includeJsdoc: boolean
+    importStyle: 'default' | 'named' | 'namespace'
+    useAsyncAwait: boolean
 }
 
 // ===============================

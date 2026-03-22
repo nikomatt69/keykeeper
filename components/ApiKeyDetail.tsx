@@ -23,7 +23,6 @@ import { useAppStore } from '../lib/store'
 import type { ApiKey } from '../lib/store'
 import ProjectPathDisplay from './ProjectPathDisplay'
 import { TauriAPI } from '../lib/tauri-api'
-import { nativeStorageService } from '../lib/services/nativeStorageService'
 import ConfigGenerationModal from './modals/ConfigGenerationModal'
 import ApiDocumentationSection from './docs/ApiDocumentationSection'
 

@@ -36,15 +36,17 @@ interface CachedResponse {
 }
 
 export class LLMProxyService {
-  private static instance: LLMProxyService;
+  private static instance: LLMProxyService | null = null;
+  private static initPromise: Promise<LLMProxyService> | null = null;
   private config: LLMProxyConfig;
   private cache = new Map<string, CachedResponse>();
-  private cacheDuration = 24 * 60 * 60 * 1000; // 24 hours
+  private cacheDuration = 24 * 60 * 60 * 1000;
+  private maxCacheSize = 1000;
 
   private constructor(config: Partial<LLMProxyConfig> = {}) {
     this.config = {
-      provider: 'openai', // Default provider
-      model: 'gpt-4o-mini', // Default model
+      provider: 'openai',
+      model: 'gpt-4o-mini',
       temperature: 0.2,
       maxTokens: 2000,
       ...config
@@ -86,6 +88,7 @@ export class LLMProxyService {
 
     try {
       const mergedConfig = { ...this.config, ...options };
+      this.cleanupCache();
 
       console.log('Sending request to LLM proxy:', {
         promptLength: prompt.length,
@@ -162,9 +165,34 @@ export class LLMProxyService {
     return response.content;
   }
 
+  // Clear expired entries from cache
+  private cleanupCache(): void {
+    const now = Date.now();
+    const maxAge = this.cacheDuration;
+    
+    for (const [key, value] of this.cache.entries()) {
+      if (now - value.timestamp > maxAge) {
+        this.cache.delete(key);
+      }
+    }
+    
+    if (this.cache.size > this.maxCacheSize) {
+      const entries = Array.from(this.cache.entries());
+      entries.sort((a, b) => a[1].timestamp - b[1].timestamp);
+      const toRemove = entries.slice(0, Math.floor(this.cache.size * 0.2));
+      toRemove.forEach(([key]) => this.cache.delete(key));
+    }
+  }
+
   // Clear the cache
   public clearCache(): void {
     this.cache.clear();
+  }
+  
+  // Get cache stats
+  public getCacheStats(): { size: number; maxSize: number } {
+    this.cleanupCache();
+    return { size: this.cache.size, maxSize: this.maxCacheSize };
   }
 
   // ===============================

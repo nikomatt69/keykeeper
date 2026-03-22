@@ -161,10 +161,10 @@ export default function AddApiKeyModal() {
               </label>
               <select
                 value={formData.environment}
-                onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value as any }))}
+                onChange={(e) => setFormData(prev => ({ ...prev, environment: e.target.value as 'development' | 'staging' | 'production' }))}
                 className="input-native"
               >
-                <option value="dev">Development</option>
+                <option value="development">Development</option>
                 <option value="staging">Staging</option>
                 <option value="production">Production</option>
               </select>

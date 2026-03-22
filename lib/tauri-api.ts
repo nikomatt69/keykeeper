@@ -1,21 +1,6 @@
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-
-export interface ApiKey {
-    id: string;
-    name: string;
-    service: string;
-    key: string;
-    description?: string;
-    environment: string;
-    rate_limit?: string;
-    expires_at?: string;
-    scopes: string[];
-    created_at: string;
-    updated_at: string;
-    tags: string[];
-    is_active: boolean;
-}
+import { ApiKey } from './types';
 
 export interface VaultStatus {
     is_unlocked: boolean;
@@ -71,14 +56,14 @@ export interface Documentation {
     id: string;
     title: string;
     content: string;
-    doc_type: string; // "api" | "guide" | "reference" | "notes" | "snippet" | "scraped"
+    doc_type: string;
     project_id?: string;
     provider_id?: string;
     url?: string;
     tags: string[];
-    created_at: string; // ISO 8601 string from Rust DateTime<Utc>
-    updated_at: string; // ISO 8601 string from Rust DateTime<Utc>
-    language: string; // "en" | "it" | "es" etc.
+    created_at: string;
+    updated_at: string;
+    language: string;
     is_favorite: boolean;
     search_keywords: string[];
 }
@@ -87,7 +72,7 @@ export interface DocSection {
     id: string;
     title: string;
     content: string;
-    level: number; // 1-6 for heading levels (maps to Rust u8)
+    level: number;
     anchor?: string;
     parent_section_id?: string;
 }
@@ -100,7 +85,7 @@ export interface ApiDocumentation {
     content: string;
     sections: DocSection[];
     tags: string[];
-    last_updated: string; // ISO 8601 string from Rust DateTime<Utc>
+    last_updated: string;
     version?: string;
     language: string;
 }
@@ -115,17 +100,6 @@ export interface DocSearchResult {
     provider_id: string;
 }
 
-export interface MLEngineStatus {
-    initialized: boolean;
-    model_loaded: boolean;
-    context_enabled: boolean;
-    stats?: {
-        total_analyses: number;
-        cache_hits: number;
-        cache_size: number;
-    };
-}
-
 export interface LLMRequest {
     prompt: string;
     context?: any;
@@ -133,11 +107,11 @@ export interface LLMRequest {
 }
 
 export interface LLMConfig {
-    provider: string; // "openai" | "local"
+    provider: string;
     model: string;
     temperature: number;
-    max_tokens: number; // Backend expects snake_case: max_tokens
-    api_key?: string; // Backend expects snake_case: api_key
+    max_tokens: number;
+    api_key?: string;
 }
 
 export interface LLMResponse {
@@ -149,18 +123,6 @@ export interface LLMResponse {
         cached: boolean;
     };
     error?: string;
-}
-
-// ML Engine Types for Frontend
-export interface MLEngineStatus {
-    initialized: boolean;
-    model_loaded: boolean;
-    context_enabled: boolean;
-    stats?: {
-        total_analyses: number;
-        cache_hits: number;
-        cache_size: number;
-    };
 }
 
 export interface ContextInfo {

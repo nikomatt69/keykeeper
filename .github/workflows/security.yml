@@ -6,11 +6,14 @@ on:
   pull_request:
     branches: [ main ]
   schedule:
-    - cron: '0 0 * * 1' # Weekly on Mondays
+    - cron: '0 0 * * 1'
 
 jobs:
   audit:
     runs-on: ubuntu-latest
+    permissions:
+      security-events: write
+      contents: read
     
     steps:
       - uses: actions/checkout@v4
@@ -29,21 +32,19 @@ jobs:
       
       - name: Audit npm packages
         run: yarn audit --audit-level moderate
-        continue-on-error: true
       
       - name: Audit Rust dependencies
         run: |
           cd src-tauri
           cargo audit
-        continue-on-error: true
       
       - name: Security scan with Semgrep
         uses: returntocorp/semgrep-action@v1
         with:
           config: >-
-            p/security-audit
-            p/secrets
-            p/owasp-top-ten
+            p/ci
+            p/rust
+            p/javascript
       
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
