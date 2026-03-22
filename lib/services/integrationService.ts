@@ -30,6 +30,9 @@ class IntegrationService {
     private backupInProgress = false
     private lastBackup: Date | null = null
     private initialized = false
+    private vscodeCheckInterval: ReturnType<typeof setInterval> | null = null
+    private backupCheckInterval: ReturnType<typeof setInterval> | null = null
+    private autoLockTimeout: ReturnType<typeof setTimeout> | null = null
 
     // VSCode Integration
     async checkVSCodeConnection(): Promise<boolean> {
@@ -218,7 +221,10 @@ class IntegrationService {
 
     // Security Functions
     async triggerAutoLock(timeoutMinutes: number): Promise<void> {
-        setTimeout(() => {
+        if (this.autoLockTimeout) {
+            clearTimeout(this.autoLockTimeout)
+        }
+        this.autoLockTimeout = setTimeout(() => {
             const { lockVault } = useAppStore.getState()
             lockVault()
 
@@ -307,31 +313,25 @@ class IntegrationService {
 
     // Initialize service
     async initialize(settings: EnterpriseSettings): Promise<void> {
-        // Prevent duplicate initialization
         if (this.initialized) {
             return
         }
         
         this.initialized = true
 
-        // Start VSCode integration if enabled
         if (settings.integrations.vscode.enabled) {
             await this.enableVSCodeIntegration(true)
-
-            // Check connection periodically
-            setInterval(() => {
+            this.vscodeCheckInterval = setInterval(() => {
                 this.checkVSCodeConnection()
-            }, 30000) // Every 30 seconds
+            }, 30000)
         }
 
-        // Schedule auto backup
         if (settings.backup.autoBackup) {
-            setInterval(() => {
+            this.backupCheckInterval = setInterval(() => {
                 this.scheduleAutoBackup(settings)
-            }, 60000) // Check every minute
+            }, 60000)
         }
 
-        // Setup auto-lock
         if (settings.security.autoLockTimeout > 0) {
             this.triggerAutoLock(settings.security.autoLockTimeout)
         }
@@ -350,6 +350,18 @@ class IntegrationService {
             connected: false,
             lastHeartbeat: null,
             connectionCount: 0
+        }
+        if (this.vscodeCheckInterval) {
+            clearInterval(this.vscodeCheckInterval)
+            this.vscodeCheckInterval = null
+        }
+        if (this.backupCheckInterval) {
+            clearInterval(this.backupCheckInterval)
+            this.backupCheckInterval = null
+        }
+        if (this.autoLockTimeout) {
+            clearTimeout(this.autoLockTimeout)
+            this.autoLockTimeout = null
         }
     }
 }

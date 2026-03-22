@@ -585,7 +585,7 @@ export class ApiProviderService {
 
         return {
             files,
-            dependencies: [...Array.from(new Set(dependencies[0]))], // Remove duplicates
+            dependencies: [...new Set(dependencies)],
             setupInstructions,
             nextSteps
         };

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Key, Shield, Eye, EyeOff, Lock } from 'lucide-react'
 import { useAppStore } from '../lib/store'
-import KeyringService from '../lib/services/keyringService'
 
 export default function UnlockVaultScreen() {
   const [password, setPassword] = useState('')

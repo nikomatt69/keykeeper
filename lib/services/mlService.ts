@@ -94,18 +94,27 @@ interface MLInitRequest extends Record<string, unknown> {
 export class MLService {
     private static isInitialized = false;
     private static initializationPromise: Promise<boolean> | null = null;
+    private static initPromise: Promise<boolean> | null = null;
 
     /**
      * Initialize the ML Engine
      */
     static async initialize(config?: MLConfig): Promise<boolean> {
-        // Avoid multiple initialization attempts
-        if (this.initializationPromise) {
-            return this.initializationPromise;
+        if (this.initPromise) {
+            return this.initPromise;
+        }
+        
+        if (this.isInitialized) {
+            return true;
         }
 
-        this.initializationPromise = this._performInitialization(config);
-        return this.initializationPromise;
+        this.initPromise = this._performInitialization(config);
+        try {
+            const result = await this.initPromise;
+            return result;
+        } finally {
+            this.initPromise = null;
+        }
     }
 
     private static async _performInitialization(config?: MLConfig): Promise<boolean> {

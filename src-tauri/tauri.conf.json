@@ -2,7 +2,7 @@
   "$schema": "../node_modules/@tauri-apps/cli/schema.json",
   "productName": "KeyKeeper",
   "version": "0.1.0",
-  "identifier": "com.keykeeper.arm64os1",
+  "identifier": "com.keykeeper.desktop",
   "build": {
     "beforeBuildCommand": "yarn build",
     "beforeDevCommand": "yarn dev",
@@ -26,7 +26,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' localhost:* ; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; worker-src 'self';",
+      "csp": "default-src 'self' localhost:* ; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' ws://localhost:* http://localhost:*; worker-src 'self';",
       "capabilities": [
         "keykeeper-capabilities"
       ],
@@ -44,9 +44,6 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ],
-    "resources": [
-      "models/*"
     ],
     "shortDescription": "A secure API key manager",
     "longDescription": "KeyKeeper is a secure, local API key manager that keeps your keys safe and organized.",
@@ -95,7 +92,7 @@
     "updater": {
       "active": true,
       "endpoints": [
-        "https://api.github.com/repos/nikoemme/keykeeper/releases/latest"
+        "https://api.github.com/repos/nikomatt69/keykeeper/releases/latest"
       ],
       "dialog": true,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDY2Q0M5MDk5OTQ4RUI4QgpSV1NMNjBpWkNjbHNCandqUldSOWs0cEtCUGhJZXFGWnRCejdacXRqdk1jZVN4QlYxV0l3Sk1pbwo="
